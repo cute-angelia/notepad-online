@@ -1,0 +1,41 @@
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}}</title>
+    <link rel="shortcut icon" href="../static/favicon.ico">
+    <style>
+        body {
+            font-family: Arial, Helvetica Neue, Helvetica, sans-serif;
+            font-size: 13px
+        }
+
+        .push {
+            margin-top: 3%;
+            margin-bottom: 3%
+        }
+
+        .area {
+            word-wrap: break-word;
+            padding: 2%;
+            background: #fff;
+            border-radius: 3px;
+            width: 80%;
+            margin: 0 auto
+        }
+
+        .preit {
+            white-space: pre-wrap
+        }
+    </style>
+
+    <link rel="stylesheet" href="../static/markdown.css">
+</head>
+<body>
+<div class="container">
+    <div class="markdown-body preit">
+        {{.text}}
+    </div>
+</div>
+</body>
+</html>
