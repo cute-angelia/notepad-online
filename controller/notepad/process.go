@@ -34,8 +34,10 @@ func ProcessHandle(ctx *gin.Context) {
 		}
 	}
 	if ctx.Request.Method == http.MethodGet {
-		if ctx.Request.URL.Path != "/favicon.ico" {
-			ctx.HTML(http.StatusOK, "index.html", gin.H{"title": "免登录 可分享 实时保存的记事本", "text": msg.Text})
-		}
+		ctx.HTML(http.StatusOK, "index.html", gin.H{
+			"title": "免登录 可分享 实时保存的记事本",
+			"tag":   tag,
+			"text":  msg.Text,
+		})
 	}
 }

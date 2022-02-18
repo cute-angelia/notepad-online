@@ -2,13 +2,19 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex,nofollow" />
     <title>{{.title}}</title>
     <link rel="shortcut icon" href="../static/favicon.ico">
     <link rel="stylesheet" href="../static/style.css">
 </head>
 <body>
 <div class="container">
-    <textarea id="content" placeholder="你的下一个笔记本 何必是笔记本">{{.text}}</textarea>
+    <textarea id="content" placeholder="">{{.text}}</textarea>
+    <div class="direct-raw">
+        <a target="_blank" href="/" title="新文本">新文本</a>
+        <a target="_blank" href="/{{.tag}}/raw" title="View in raw">纯文本</a>
+        <a target="_blank" href="/{{.tag}}/md" title="View in markdown">MarkDown</a>
+    </div>
 </div>
 <pre id="printable"></pre>
 <script src="../static/script.js"></script>

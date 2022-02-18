@@ -1,18 +1,26 @@
 package main
 
 import (
+	"embed"
 	_ "embed"
 	"github.com/cute-angelia/go-utils/conf"
 	"github.com/cute-angelia/go-utils/db/igorm"
 	"github.com/cute-angelia/go-utils/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
+	"html/template"
+	"log"
+	"net/http"
 	"note/controller/notepad"
 	"note/model"
+	"path"
 )
 
 //go:embed config.toml
 var configToml []byte
+
+//go:embed static/* templates/*
+var staticFS embed.FS
 
 func main() {
 	// 加载配置
@@ -38,23 +46,33 @@ func main() {
 
 	// router
 	r.GET("/", notepad.Index)
+	r.GET("/robots.txt", notepad.RobotsHandle)
 	r.POST("/:id", notepad.ProcessHandle)
 	r.GET("/:id", notepad.ProcessHandle)
 	r.GET("/:id/md", notepad.MarkdownHandle)
+	r.GET("/:id/raw", notepad.RawHandle)
 
 	//apiRouter := r.Group("/api")
 	//api := note.NewNoteApi()
 	//apiRouter.POST("/create", api.Create)
 	//apiRouter.POST("/update", api.Update)
 
-	r.Static("./static", "./static")
-	// r.LoadHTMLGlob("./static/*")
-	r.LoadHTMLGlob("./static/*.html")
+	// r.Static("./static", "./static")
+
+	// 设置模板
+	templ := template.Must(template.New("").ParseFS(staticFS, "templates/*.html"))
+	r.SetHTMLTemplate(templ)
+	// r.LoadHTMLGlob("./static/*.html")
+
+	// 静态文件
+	// r.StaticFS("/static", http.FS(staticFS))
+	r.GET("/static/*filepath", func(c *gin.Context) {
+		c.FileFromFS(path.Join("/", c.Request.URL.Path), http.FS(staticFS))
+	})
 
 	port := viper.GetString("note.serverPort")
-	if port != "" {
-		if err := r.Run(":" + port); err != nil {
-			panic(err)
-		}
+	log.Println("run: http://127.0.0.1:" + port)
+	if err := r.Run(":" + port); err != nil {
+		panic(err)
 	}
 }

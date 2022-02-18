@@ -5,8 +5,7 @@
 多种查看类型：
 - 文本
 - markdown
-- code
-
 
 ### 参考
-[fork](https://github.com/Sunbalcony/note)
+[Sunbalcony note](https://github.com/Sunbalcony/note)
+[notepad.pw](https://notepad.pw)
