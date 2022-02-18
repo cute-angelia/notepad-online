@@ -9,3 +9,13 @@
 ### 参考
 [Sunbalcony note](https://github.com/Sunbalcony/note)
 [notepad.pw](https://notepad.pw)
+
+
+
+### develop
+
+```
+	contentType := mime.TypeByExtension(filepath.Ext(requestedPath))
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "max-age=864000")
+```
