@@ -10,10 +10,14 @@ import (
 	"github.com/spf13/viper"
 	"html/template"
 	"log"
+	"mime"
 	"net/http"
 	"note/controller/notepad"
 	"note/model"
 	"path"
+	"path/filepath"
+	"strings"
+	"time"
 )
 
 //go:embed config.toml
@@ -56,7 +60,6 @@ func main() {
 	//api := note.NewNoteApi()
 	//apiRouter.POST("/create", api.Create)
 	//apiRouter.POST("/update", api.Update)
-
 	// r.Static("./static", "./static")
 
 	// 设置模板
@@ -67,6 +70,19 @@ func main() {
 	// 静态文件
 	// r.StaticFS("/static", http.FS(staticFS))
 	r.GET("/static/*filepath", func(c *gin.Context) {
+		contentType := mime.TypeByExtension(filepath.Ext(c.Request.URL.Path))
+		c.Header("Cache-Type", contentType)
+		c.Header("Cache-Control", "public, max-age=31536000")
+
+		etag := time.Now().Format("20060102150405")
+		c.Header("ETag", etag)
+		if match := c.GetHeader("If-None-Match"); match != "" {
+			if strings.Contains(match, etag) {
+				c.Status(http.StatusNotModified)
+				return
+			}
+		}
+
 		c.FileFromFS(path.Join("/", c.Request.URL.Path), http.FS(staticFS))
 	})
 
