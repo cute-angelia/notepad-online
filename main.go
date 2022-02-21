@@ -20,15 +20,12 @@ import (
 	"time"
 )
 
-//go:embed config.toml
-var configToml []byte
-
 //go:embed static/* templates/*
 var staticFS embed.FS
 
 func main() {
 	// 加载配置
-	conf.MustLoadConfigByte(configToml, "toml")
+	conf.MustLoadConfigFile("config.toml")
 
 	// 日志
 	logger.NewLogger("notepad", viper.GetBool("note.wirteLogFile"))

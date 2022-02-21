@@ -15,6 +15,6 @@ tag:
 	git add .
 	git commit -am "update"
 	git push origin main
-	git tag v1.0.4
+	git tag v1.0.5
 	git push --tags
 	@echo "\n tags 发布中..."
