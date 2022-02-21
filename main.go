@@ -53,12 +53,6 @@ func main() {
 	r.GET("/:id/md", notepad.MarkdownHandle)
 	r.GET("/:id/raw", notepad.RawHandle)
 
-	//apiRouter := r.Group("/api")
-	//api := note.NewNoteApi()
-	//apiRouter.POST("/create", api.Create)
-	//apiRouter.POST("/update", api.Update)
-	// r.Static("./static", "./static")
-
 	// 设置模板
 	templ := template.Must(template.New("").ParseFS(staticFS, "templates/*.html"))
 	r.SetHTMLTemplate(templ)
