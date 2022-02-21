@@ -34,10 +34,6 @@ jobs:
           go-version: 1.17
 
       -
-        name: tidy
-        run: go mod tidy
-
-      -
         name: Cache Go modules
         uses: actions/cache@v1
         with:
@@ -51,6 +47,6 @@ jobs:
         uses: goreleaser/goreleaser-action@v1
         with:
           version: latest
-          args: release --rm-dist
+          args: release --rm-dist --skip-validate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
