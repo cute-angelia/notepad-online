@@ -6,6 +6,19 @@
 - 文本
 - markdown
 
+### 使用说明
+
+1. 下载：[releases](https://github.com/cute-angelia/notepad-online/releases)
+2. 同目录新建 config.toml
+    内容如下
+    ```
+[note]
+wirteLogFile = false
+serverPort = 8787
+keyLength = 6
+mysqDsn = "root:LuXXX@tcp(hXXX:3306)/XXX?charset=utf8mb4&parseTime=true&loc=Local"
+    ```
+
 
 示例图:
 
