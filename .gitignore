@@ -35,5 +35,5 @@ node_modules
 
 .vscode
 .zip
-
+.idea
 config.toml
