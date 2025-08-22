@@ -28,6 +28,7 @@ func ProcessHandle(ctx *gin.Context) {
 			msg.Tag = tag
 			msg.Text = text
 			msg.CreateTime = time.Now().Format("2006-01-02 15:04:05")
+			msg.UpdateTime = time.Now().Format("2006-01-02 15:04:05")
 			orm.Create(&msg)
 		} else {
 			orm.Model(msg).UpdateColumn("text", text)
