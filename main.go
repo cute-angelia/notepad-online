@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"note/controller/notepad"
 	"note/model"
+	"note/pkg/middleware"
 	"path"
 	"path/filepath"
 	"strings"
@@ -45,24 +46,40 @@ func main() {
 	r := gin.Default()
 	// gin.SetMode(gin.ReleaseMode)
 
-	// router
-	r.GET("/", notepad.Index)
+	// 全局安全中间件：安全响应头、最大请求体限制 (5MB)
+	r.Use(middleware.SecurityHeaders())
+	r.Use(middleware.MaxBodySize(5 << 20))
+
+	// 动态路由限流：每个 IP 每分钟最多 120 次请求（兼顾正常编辑与防暴力枚举）
+	limiter := middleware.NewIPRateLimiter(120, time.Minute)
+
+	// 静态及基础设施路由
 	r.GET("/robots.txt", notepad.RobotsHandle)
-	r.POST("/:id", notepad.ProcessHandle)
-	r.GET("/:id", notepad.ProcessHandle)
-	r.GET("/:id/md", notepad.MarkdownHandle)
-	r.GET("/:id/raw", notepad.RawHandle)
+	r.GET("/favicon.ico", func(c *gin.Context) {
+		c.FileFromFS("/static/favicon.ico", http.FS(staticFS))
+	})
+
+	// 记事本业务路由
+	noteGroup := r.Group("/")
+	noteGroup.Use(limiter.Middleware())
+	{
+		noteGroup.GET("/", notepad.Index)
+		noteGroup.POST("/:id", notepad.ProcessHandle)
+		noteGroup.GET("/:id", notepad.ProcessHandle)
+		noteGroup.GET("/:id/md", notepad.MarkdownHandle)
+		noteGroup.GET("/:id/raw", notepad.RawHandle)
+	}
 
 	// 设置模板
 	templ := template.Must(template.New("").ParseFS(staticFS, "templates/*.html"))
 	r.SetHTMLTemplate(templ)
-	// r.LoadHTMLGlob("./static/*.html")
 
 	// 静态文件
-	// r.StaticFS("/static", http.FS(staticFS))
 	r.GET("/static/*filepath", func(c *gin.Context) {
 		contentType := mime.TypeByExtension(filepath.Ext(c.Request.URL.Path))
-		c.Header("Cache-Type", contentType)
+		if contentType != "" {
+			c.Header("Content-Type", contentType)
+		}
 		c.Header("Cache-Control", "public, max-age=31536000")
 
 		etag := time.Now().Format("20060102150405")

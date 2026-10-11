@@ -1,18 +1,26 @@
 package util
 
 import (
-	"bytes"
-	"math/rand"
-	"time"
+	"crypto/rand"
+	"math/big"
 )
 
 const char = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 func RandChar(size int) string {
-	rand.NewSource(time.Now().UnixNano())
-	var s bytes.Buffer
-	for i := 0; i < size; i++ {
-		s.WriteByte(char[rand.Int63()%int64(len(char))])
+	if size <= 0 {
+		return ""
 	}
-	return s.String()
+	result := make([]byte, size)
+	charLen := big.NewInt(int64(len(char)))
+	for i := 0; i < size; i++ {
+		num, err := rand.Int(rand.Reader, charLen)
+		if err != nil {
+			result[i] = char[i%len(char)]
+			continue
+		}
+		result[i] = char[num.Int64()]
+	}
+	return string(result)
 }
+

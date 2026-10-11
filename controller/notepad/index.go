@@ -11,5 +11,11 @@ func Index(ctx *gin.Context) {
 	ctx.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	ctx.Header("Pragma", "no-cache")
 	ctx.Header("Expires", "0")
-	ctx.Redirect(http.StatusMovedPermanently, ctx.Request.URL.EscapedPath()+util.RandChar(viper.GetInt("note.keylength"))) //url path长度
+
+	keyLength := viper.GetInt("note.keylength")
+	if keyLength <= 0 {
+		keyLength = 6
+	}
+
+	ctx.Redirect(http.StatusFound, "/"+util.RandChar(keyLength))
 }
