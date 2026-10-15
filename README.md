@@ -8,6 +8,7 @@
 支持类型：
 - 文本
 - markdown
+- 代码 (code)
 
 ### 使用说明
 
@@ -54,7 +55,7 @@ mysqDsn = "root:LuXXX@tcp(hXXX:3306)/XXX?charset=utf8mb4&parseTime=true&loc=Loca
 | 字段 | 用途 |
 | --- | --- |
 | `title` | 标题，最多 200 个字符 |
-| `document_type` | `text` 或 `markdown` |
+| `document_type` | `text`、`markdown` 或 `code` |
 | `secret` | bcrypt 秘钥哈希，不存明文 |
 | `locked` | 锁定截止时间的 Unix 秒时间戳；`0` 表示未锁定 |
 | `failed_attempts` | 当天跨访客累计输错次数 |
