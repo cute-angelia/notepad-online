@@ -49,32 +49,37 @@ func writeGuard(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	c.Next()
 }
-func validTag(tag string) bool {
-	if tag == "" || tag == "favicon.ico" || tag == "robots.txt" || len([]rune(tag)) > 128 {
+func validSlug(slug string) bool {
+	if slug == "" || slug == "favicon.ico" || slug == "robots.txt" || len([]rune(slug)) > 32 {
 		return false
 	}
-	if strings.TrimSpace(tag) != tag || tag == "." || tag == ".." {
+	if strings.TrimSpace(slug) != slug || slug == "." || slug == ".." {
 		return false
 	}
-	for _, r := range tag {
+	for _, r := range slug {
 		if r == '/' || r == '\\' || unicode.IsControl(r) {
 			return false
 		}
 	}
 	return true
 }
+
+func validTag(tag string) bool {
+	return validSlug(tag)
+}
+
 func (s *Server) find(c *gin.Context) (model.NotepadModel, bool) {
 	var n model.NotepadModel
-	tag := c.Param("id")
-	if !validTag(tag) {
+	slug := c.Param("id")
+	if !validSlug(slug) {
 		status := 404
-		if len([]rune(tag)) > 128 {
+		if len([]rune(slug)) > 32 {
 			status = 400
 		}
 		c.AbortWithStatus(status)
 		return n, false
 	}
-	err := s.DB.Where("tag = ?", tag).First(&n).Error
+	err := s.DB.Where("slug = ?", slug).First(&n).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.AbortWithStatus(404)
 		return n, false
@@ -93,7 +98,7 @@ func noCache(c *gin.Context) {
 	c.Header("Pragma", "no-cache")
 	c.Header("Expires", "0")
 }
-func notePath(tag string) string { return "/" + url.PathEscape(tag) }
+func notePath(slug string) string { return "/" + url.PathEscape(slug) }
 
 func noteTitle(n model.NotepadModel) string {
 	if strings.TrimSpace(n.Title) == "" {
@@ -111,7 +116,8 @@ func (s *Server) render(c *gin.Context, n model.NotepadModel, editable, newNote 
 		"title": noteTitle(n), "note": n, "editable": editable,
 		"newNote": newNote, "initialSecret": initialSecret, "kind": kind,
 		"locked": n.Locked > s.Now().Unix(), "lockedUntil": n.Locked,
-		"editURL":     notePath(n.Tag) + "/edit",
+		"editURL":     notePath(n.Slug) + "/edit",
+		"viewURL":     notePath(n.Slug),
 		"requestEdit": strings.HasSuffix(c.Request.URL.Path, "/edit") && !editable,
 	})
 }

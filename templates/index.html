@@ -6,15 +6,15 @@
     <meta name="robots" content="noindex,nofollow">
     <title>{{.title}} · 记事本</title>
     <link rel="icon" href="/static/favicon.ico">
-    <link rel="stylesheet" href="/static/markdown.css?v=20261015f">
-    <link rel="stylesheet" href="/static/style.css?v=20261015f">
-    <script defer src="/static/marked.min.js?v=20261015f"></script>
-    <script defer src="/static/render.js?v=20261015f"></script>
-    <script defer src="/static/markdown-tools.js?v=20261015f"></script>
-    <script defer src="/static/outline.js?v=20261015f"></script>
-    <script defer src="/static/script.js?v=20261015f"></script>
+    <link rel="stylesheet" href="/static/markdown.css?v=20261015j">
+    <link rel="stylesheet" href="/static/style.css?v=20261015j">
+    <script defer src="/static/marked.min.js?v=20261015j"></script>
+    <script defer src="/static/render.js?v=20261015j"></script>
+    <script defer src="/static/markdown-tools.js?v=20261015j"></script>
+    <script defer src="/static/outline.js?v=20261015j"></script>
+    <script defer src="/static/script.js?v=20261015j"></script>
 </head>
-<body data-tag="{{.note.Tag}}" data-editable="{{.editable}}" data-new="{{.newNote}}" data-kind="{{.kind}}" data-locked-until="{{.lockedUntil}}" data-request-edit="{{.requestEdit}}">
+<body data-slug="{{.note.Slug}}" data-tag="{{.note.Slug}}" data-editable="{{.editable}}" data-new="{{.newNote}}" data-kind="{{.kind}}" data-locked-until="{{.lockedUntil}}" data-request-edit="{{.requestEdit}}">
 <aside id="document-outline" class="document-outline" hidden>
     <nav aria-label="文档目录">
         <h2 class="outline-caption">目录</h2>
@@ -32,8 +32,8 @@
             <span class="small-divider" aria-hidden="true"></span>
             <button class="text-button" id="random-secret" type="button" {{if .locked}}disabled{{end}}>随机</button>
         </div>
-        <span id="save-status" class="save-status" role="status" aria-live="polite">{{if .editable}}{{if .newNote}}尚未保存{{else}}已保存{{end}}{{else}}只读分享{{end}}</span>
-        <a class="quiet-link" href="/" target="_blank" rel="noopener">新建</a>
+        <span id="save-status" class="save-status" role="status" aria-live="polite" {{if and .editable (not .newNote)}}data-state="saved"{{end}}>{{if .editable}}{{if .newNote}}尚未保存{{else}}已保存{{end}}{{else}}只读分享{{end}}</span>
+        <a class="quiet-link" id="view-link" href="{{.viewURL}}" target="_blank" rel="noopener">打开链接</a>
         <button class="button button-outline" id="share-button" type="button"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 6H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-2M10 3h7v7M8 12l9-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>复制链接</span></button>
 
     </div>
@@ -87,9 +87,10 @@
     </form>
 </dialog>
 <dialog id="share-dialog" class="unlock-dialog">
+    <button class="dialog-close" type="button" id="close-share-x" aria-label="关闭">×</button>
     <h2>分享链接</h2><p class="dialog-description">复制下方链接，其他人只能查看。</p>
     <input id="share-url" type="url" readonly aria-label="只读分享链接">
-    <button class="button button-solid" id="close-share" type="button">完成</button>
+    <button class="button button-solid" id="close-share" type="button">复制</button>
 </dialog>
 </body>
 </html>

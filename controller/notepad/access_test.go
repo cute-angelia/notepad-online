@@ -134,7 +134,7 @@ func TestTenFailuresLockOwnerAndManualUnlock(t *testing.T) {
 		t.Fatal("lock prevented reading")
 	}
 	var n model.NotepadModel
-	s.DB.Where("tag = ?", "locked-note").First(&n)
+	s.DB.Where("slug = ?", "locked-note").First(&n)
 	expected := time.Date(2026, 10, 15, 16, 0, 0, 0, time.UTC).Unix()
 	if n.Locked != expected {
 		t.Fatalf("lock until %d, want %d", n.Locked, expected)
@@ -176,12 +176,12 @@ func TestLockExpiresAtShanghaiMidnightAndCounterPersists(t *testing.T) {
 
 func TestMigrationKeepsLegacyTextAndSetsTwinsOnlyOnce(t *testing.T) {
 	s, r := testServer(t)
-	s.DB.Exec("INSERT INTO notepad (tag,text,secret,document_type) VALUES (?,?,?,?)", "legacy", "old body", "", "")
+	s.DB.Exec("INSERT INTO notepad (slug,text,secret,document_type) VALUES (?,?,?,?)", "legacy", "old body", "", "")
 	if err := model.Migrate(s.DB); err != nil {
 		t.Fatal(err)
 	}
 	var n model.NotepadModel
-	s.DB.Where("tag = ?", "legacy").First(&n)
+	s.DB.Where("slug = ?", "legacy").First(&n)
 	if n.DocumentType != "text" || n.Text != "old body" {
 		t.Fatalf("bad migration: %+v", n)
 	}
@@ -317,7 +317,7 @@ func TestSuccessfulUnlockDoesNotResetDailyFailures(t *testing.T) {
 		t.Fatalf("success cleared cumulative failures: %d", w.Code)
 	}
 	var n model.NotepadModel
-	s.DB.Where("tag = ?", "cumulative").First(&n)
+	s.DB.Where("slug = ?", "cumulative").First(&n)
 	if n.FailedAttempts != 10 {
 		t.Fatal(n.FailedAttempts)
 	}
@@ -366,7 +366,7 @@ func TestConcurrentFailuresCannotBypassGlobalLock(t *testing.T) {
 		t.Fatalf("expected one tenth-attempt lock, got %d", locked)
 	}
 	var n model.NotepadModel
-	s.DB.Where("tag = ?", "parallel-note").First(&n)
+	s.DB.Where("slug = ?", "parallel-note").First(&n)
 	if n.FailedAttempts != 10 || n.Locked <= s.Now().Unix() {
 		t.Fatalf("lost concurrent failures: %+v", n)
 	}
@@ -432,7 +432,7 @@ func TestSavingUnchangedSecretKeepsOtherBrowserAuthorized(t *testing.T) {
 	w := request(r, "POST", "/same-secret/unlock", url.Values{"secret": {"apple"}})
 	other := w.Result().Cookies()
 	var before model.NotepadModel
-	s.DB.Where("tag = ?", "same-secret").First(&before)
+	s.DB.Where("slug = ?", "same-secret").First(&before)
 	w = request(r, "POST", "/same-secret", url.Values{"secret": {"apple"}, "text": {"updated"}}, owner...)
 	if w.Code != 200 {
 		t.Fatal(w.Body.String())

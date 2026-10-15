@@ -9,7 +9,7 @@ import (
 
 type NotepadModel struct {
 	Id             int32  `json:"id" gorm:"primary_key"`
-	Tag            string `json:"tag" gorm:"column:tag;size:128;uniqueIndex:idx_notepad_tag"`
+	Slug           string `json:"slug" gorm:"column:slug;size:32;uniqueIndex:idx_notepad_slug"`
 	Title          string `json:"title" gorm:"size:800;not null;default:''"`
 	Text           string `json:"text" gorm:"column:text"`
 	DocumentType   string `json:"document_type" gorm:"size:16;not null;default:text"`
@@ -34,12 +34,21 @@ type BrowserGrant struct {
 // Migrate does not silently discard ambiguous historical records.
 func Migrate(db *gorm.DB) error {
 	if db.Migrator().HasTable(&NotepadModel{}) {
+		if db.Migrator().HasColumn(&NotepadModel{}, "tag") && !db.Migrator().HasColumn(&NotepadModel{}, "slug") {
+			if err := db.Migrator().RenameColumn(&NotepadModel{}, "tag", "slug"); err != nil {
+				return fmt.Errorf("notepad migration rename tag to slug: %w", err)
+			}
+		}
 		var duplicates int64
-		if err := db.Raw("SELECT COUNT(*) FROM (SELECT tag FROM notepad GROUP BY tag HAVING COUNT(*) > 1) AS duplicate_tags").Scan(&duplicates).Error; err != nil {
+		col := "slug"
+		if !db.Migrator().HasColumn(&NotepadModel{}, "slug") && db.Migrator().HasColumn(&NotepadModel{}, "tag") {
+			col = "tag"
+		}
+		if err := db.Raw(fmt.Sprintf("SELECT COUNT(*) FROM (SELECT %s FROM notepad GROUP BY %s HAVING COUNT(*) > 1) AS duplicate_slugs", col, col)).Scan(&duplicates).Error; err != nil {
 			return err
 		}
 		if duplicates > 0 {
-			return fmt.Errorf("notepad migration: %d duplicate tags; resolve duplicates before adding unique index", duplicates)
+			return fmt.Errorf("notepad migration: %d duplicate slugs; resolve duplicates before adding unique index", duplicates)
 		}
 	}
 	if err := db.AutoMigrate(&NotepadModel{}, &BrowserGrant{}); err != nil {

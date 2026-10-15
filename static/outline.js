@@ -34,9 +34,13 @@
         mirror.appendChild(document.createTextNode(textarea.value.slice(0, offset)));
         var marker = document.createElement('span'); marker.textContent = '\u200b'; mirror.appendChild(marker);
         document.body.appendChild(mirror);
-        var top = textarea.getBoundingClientRect().top + window.scrollY + marker.offsetTop - 32;
+        var mirrorTop = marker.offsetTop;
         mirror.remove();
-        window.scrollTo({top: Math.max(0, top), behavior: reducedMotion.matches ? 'auto' : 'smooth'});
+        textarea.scrollTo({top: Math.max(0, mirrorTop - 32), behavior: reducedMotion.matches ? 'auto' : 'smooth'});
+        var rect = textarea.getBoundingClientRect();
+        if (rect.top < 0 || rect.bottom > window.innerHeight) {
+            textarea.scrollIntoView({block: 'nearest', behavior: reducedMotion.matches ? 'auto' : 'smooth'});
+        }
     }
     list.addEventListener('click', function (event) {
         var link = event.target.closest('a[data-outline-index]');

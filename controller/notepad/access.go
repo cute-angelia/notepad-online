@@ -110,8 +110,8 @@ func (s *Server) RandomSecret(c *gin.Context) {
 	c.JSON(200, gin.H{"secret": word})
 }
 func (s *Server) Unlock(c *gin.Context) {
-	tag := c.Param("id")
-	if !validTag(tag) {
+	slug := c.Param("id")
+	if !validSlug(slug) {
 		c.Status(404)
 		return
 	}
@@ -130,7 +130,7 @@ func (s *Server) Unlock(c *gin.Context) {
 	attempts := 0
 	err = s.DB.Transaction(func(tx *gorm.DB) error {
 		var n model.NotepadModel
-		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tag = ?", tag).First(&n).Error; e != nil {
+		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("slug = ?", slug).First(&n).Error; e != nil {
 			if errors.Is(e, gorm.ErrRecordNotFound) {
 				status = 404
 				return nil
@@ -181,5 +181,5 @@ func (s *Server) Unlock(c *gin.Context) {
 		c.Status(404)
 		return
 	}
-	c.JSON(200, gin.H{"edit_url": notePath(tag) + "/edit"})
+	c.JSON(200, gin.H{"edit_url": notePath(slug) + "/edit"})
 }

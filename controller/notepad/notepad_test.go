@@ -29,13 +29,13 @@ func TestProcessHandleValidations(t *testing.T) {
 		t.Errorf("expected 404 for robots.txt, got %d", w2.Code)
 	}
 
-	// Case 3: Overly long tag (> 128 characters)
-	longTag := strings.Repeat("a", 129)
+	// Case 3: Overly long slug (> 32 characters)
+	longSlug := strings.Repeat("a", 33)
 	w3 := httptest.NewRecorder()
-	req3, _ := http.NewRequest(http.MethodGet, "/"+longTag, nil)
+	req3, _ := http.NewRequest(http.MethodGet, "/"+longSlug, nil)
 	r.ServeHTTP(w3, req3)
 	if w3.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for overly long tag, got %d", w3.Code)
+		t.Errorf("expected 400 for overly long slug, got %d", w3.Code)
 	}
 
 	// Case 4: Overly long text payload (> 100,000 characters)

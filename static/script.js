@@ -1,6 +1,6 @@
 (function () {
     'use strict';
-    var body = document.body, tag = body.dataset.tag, editable = body.dataset.editable === 'true';
+    var body = document.body, slug = body.dataset.slug || body.dataset.tag, tag = slug, editable = body.dataset.editable === 'true';
     var isNew = body.dataset.new === 'true', kind = body.dataset.kind;
     var doc = document.getElementById('document'), status = document.getElementById('save-status');
     var textarea = document.getElementById('content'), title = document.getElementById('note-title');
@@ -29,7 +29,60 @@
         }
         return result;
     }
-    function setStatus(text, state) { if (status) {status.textContent = text; status.dataset.state = state || '';} var mobileStatus = document.getElementById('mobile-save-status'); if (mobileStatus) {mobileStatus.textContent = text; mobileStatus.dataset.state = state || '';} }
+    function setStatus(text, state) {
+        if (!state) {
+            if (text === '已保存') state = 'saved';
+            else if (text === '尚未保存') state = 'unsaved';
+        }
+        if (status) { status.textContent = text; status.dataset.state = state || ''; }
+        var mobileStatus = document.getElementById('mobile-save-status');
+        if (mobileStatus) { mobileStatus.textContent = text; mobileStatus.dataset.state = state || ''; }
+    }
+    function showToast(text) {
+        var toast = document.getElementById('notepad-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'notepad-toast';
+            toast.className = 'notepad-toast';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = text;
+        toast.classList.add('is-visible');
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(function () {
+            toast.classList.remove('is-visible');
+        }, 1800);
+    }
+    async function copyText(text, fallbackInput) {
+        if (!text) return false;
+        var ok = false;
+        if (navigator.clipboard && window.isSecureContext) {
+            try {
+                await navigator.clipboard.writeText(text);
+                ok = true;
+            } catch (_) {}
+        }
+        if (!ok && fallbackInput) {
+            try {
+                fallbackInput.focus();
+                fallbackInput.select();
+                ok = document.execCommand('copy');
+            } catch (_) {}
+        }
+        if (!ok) {
+            try {
+                var temp = document.createElement('textarea');
+                temp.value = text;
+                temp.style.position = 'fixed';
+                temp.style.opacity = '0';
+                document.body.appendChild(temp);
+                temp.select();
+                ok = document.execCommand('copy');
+                document.body.removeChild(temp);
+            } catch (_) {}
+        }
+        return ok;
+    }
     function showNotice(text, tone) { notice.textContent = text; notice.dataset.tone = tone || 'error'; notice.hidden = false; }
     function lock(until) {
         blocked = true; lockedUntil = until || lockedUntil;
@@ -52,6 +105,15 @@
         }, remaining + 100);
 
     }
+    var activeScrollPane = null, scrollReleaseTimer = null;
+    function syncScroll(source, target) {
+        if (!previewOpen || !preview || preview.hidden) return;
+        var sourceMax = source.scrollHeight - source.clientHeight;
+        var targetMax = target.scrollHeight - target.clientHeight;
+        if (sourceMax <= 0 || targetMax <= 0) return;
+        var ratio = Math.max(0, Math.min(1, source.scrollTop / sourceMax));
+        target.scrollTop = ratio * targetMax;
+    }
     function updateDocument() {
         if (!editable) return;
         doc.dataset.kind = kind;
@@ -63,7 +125,11 @@
         doc.classList.toggle('is-preview', show); preview.hidden = !show;
         previewButton.setAttribute('aria-pressed', String(show));
         previewButton.querySelector('span').textContent = show ? '收起预览' : '实时预览';
-        textarea.style.height = 'auto'; textarea.style.height = Math.max(textarea.scrollHeight, 360) + 'px';
+        if (show) {
+            requestAnimationFrame(function () {
+                syncScroll(textarea, preview);
+            });
+        }
         document.getElementById('word-count').textContent = Array.from(textarea.value).length.toLocaleString() + ' 字';
         document.title = (title.value.trim() || '未命名文档') + ' · 记事本';
     }
@@ -86,13 +152,19 @@
         }
         var creating = isNew;
         if (keyChanged) data.secret = capturedKey;
-        if (creating) data.tag = tag;
+        if (creating) { data.slug = slug; data.tag = slug; }
         setStatus('保存中', 'saving');
         inFlight = (async function () {
             try {
                 var result = await api(creating ? '/api/notes' : '/' + encodeURIComponent(tag), data);
                 lastSaved = JSON.stringify({title: data.title, text: data.text, document_type: data.document_type});
-                if (creating) {isNew = false; body.dataset.new = 'false'; history.replaceState(null, '', result.edit_url);}
+                if (creating) {
+                    isNew = false;
+                    body.dataset.new = 'false';
+                    history.replaceState(null, '', result.edit_url);
+                    var viewLink = document.getElementById('view-link');
+                    if (viewLink) viewLink.href = result.view_url || ('/' + encodeURIComponent(slug));
+                }
                 savedSecret = capturedKey;
                 if (capturedKey) rememberSecret(capturedKey);
                 setStatus('已保存');
@@ -114,13 +186,40 @@
             if (editable && !blocked) {await save(); while (changed()) await save();}
             else if (editable && changed()) throw new Error('当前有未保存的修改，分享前请先保存或解锁');
             var url = new URL('/' + encodeURIComponent(tag), window.location.origin).href;
-            try {await navigator.clipboard.writeText(url); shareButton.querySelector('span').textContent = '链接已复制';}
-            catch (_) { var input = document.getElementById('share-url'); input.value = url; document.getElementById('share-dialog').showModal(); input.select(); }
+            var copied = await copyText(url);
+            if (copied) {
+                shareButton.querySelector('span').textContent = '链接已复制';
+                showToast('分享链接已复制');
+            } else {
+                var input = document.getElementById('share-url');
+                input.value = url;
+                document.getElementById('share-dialog').showModal();
+                input.select();
+            }
             setTimeout(function () {shareButton.querySelector('span').textContent = '复制链接';}, 2000);
         } catch (error) {showNotice(error.message);} finally {shareButton.disabled = false;}
     }
     if (shareButton) shareButton.addEventListener('click', share);
-    document.getElementById('close-share').addEventListener('click', function () {document.getElementById('share-dialog').close();});
+    var closeShareBtn = document.getElementById('close-share');
+    if (closeShareBtn) {
+        closeShareBtn.addEventListener('click', async function () {
+            var input = document.getElementById('share-url');
+            var url = (input && input.value) ? input.value : new URL('/' + encodeURIComponent(tag), window.location.origin).href;
+            await copyText(url, input);
+            showToast('分享链接已复制');
+            closeShareBtn.textContent = '已复制';
+            setTimeout(function () {
+                document.getElementById('share-dialog').close();
+                closeShareBtn.textContent = '复制';
+            }, 500);
+        });
+    }
+    var closeShareX = document.getElementById('close-share-x');
+    if (closeShareX) {
+        closeShareX.addEventListener('click', function () {
+            document.getElementById('share-dialog').close();
+        });
+    }
 
     function openUnlock() {
         if (blocked) {lock(lockedUntil);return;}
@@ -155,14 +254,31 @@
         document.querySelectorAll('.type-switch button').forEach(function (button) {button.addEventListener('click', function () {if (blocked) return;kind = button.dataset.kind;updateDocument();schedule();});});
         previewButton.addEventListener('click', function () {previewOpen = !previewOpen;updateDocument();});
         mobile.addEventListener('change', updateDocument);
+
+        var setHover = function (pane) { activeScrollPane = pane; clearTimeout(scrollReleaseTimer); };
+        var clearHover = function () { scrollReleaseTimer = setTimeout(function () { activeScrollPane = null; }, 300); };
+        textarea.addEventListener('mouseenter', function () { setHover('source'); });
+        textarea.addEventListener('mouseleave', clearHover);
+        textarea.addEventListener('touchstart', function () { setHover('source'); }, { passive: true });
+        textarea.addEventListener('touchend', clearHover);
+        preview.addEventListener('mouseenter', function () { setHover('preview'); });
+        preview.addEventListener('mouseleave', clearHover);
+        preview.addEventListener('touchstart', function () { setHover('preview'); }, { passive: true });
+        preview.addEventListener('touchend', clearHover);
+
+        textarea.addEventListener('scroll', function () {
+            if (activeScrollPane === 'preview') return;
+            syncScroll(textarea, preview);
+        }, { passive: true });
+
+        preview.addEventListener('scroll', function () {
+            if (activeScrollPane === 'source') return;
+            syncScroll(preview, textarea);
+        }, { passive: true });
         secret.addEventListener('click', async function () {
             if (!secret.value) return;
-            try {
-                await navigator.clipboard.writeText(secret.value);
-                secret.title = '秘钥已复制';
-            } catch (_) {
-                secret.select();
-            }
+            await copyText(secret.value, secret);
+            showToast('秘钥已复制');
         });
         document.getElementById('random-secret').addEventListener('click', async function () {
             var button = this; button.disabled = true;

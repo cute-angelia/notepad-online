@@ -23,9 +23,9 @@ func validateNote(n model.NotepadModel) string {
 	return ""
 }
 func (s *Server) Save(c *gin.Context) {
-	if !validTag(c.Param("id")) {
+	if !validSlug(c.Param("id")) {
 		status := 404
-		if len([]rune(c.Param("id"))) > 128 {
+		if len([]rune(c.Param("id"))) > 32 {
 			status = 400
 		}
 		c.Status(status)
@@ -49,7 +49,7 @@ func (s *Server) Save(c *gin.Context) {
 	message := ""
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		var n model.NotepadModel
-		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tag = ?", c.Param("id")).First(&n).Error; e != nil {
+		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("slug = ?", c.Param("id")).First(&n).Error; e != nil {
 			if errors.Is(e, gorm.ErrRecordNotFound) {
 				status = 404
 				return nil
