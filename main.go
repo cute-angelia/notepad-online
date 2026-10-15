@@ -4,9 +4,9 @@ import (
 	"embed"
 	_ "embed"
 	"errors"
-	"github.com/cute-angelia/go-utils/conf"
-	"github.com/cute-angelia/go-utils/db/igorm"
-	"github.com/cute-angelia/go-utils/logger"
+	"github.com/cute-angelia/go-xutils/components/igorm"
+	"github.com/cute-angelia/go-xutils/components/loggers/logger"
+	"github.com/cute-angelia/go-xutils/utils/conf"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
 	"html/template"
@@ -34,7 +34,8 @@ func main() {
 	logger.NewLogger("notepad", viper.GetBool("note.wirteLogFile"))
 
 	// 初始化数据库
-	igorm.Load("notepad").Build(
+	igorm.New(
+		igorm.WithDbName("notepad"),
 		igorm.WithDsn(viper.GetString("note.mysqDsn")),
 		igorm.WithMaxIdleConns(0),
 		igorm.WithMaxOpenConnss(10),
