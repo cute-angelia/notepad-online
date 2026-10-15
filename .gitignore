@@ -2,7 +2,7 @@
 !*.*
 !*/
 
-!Makefile
+Makefile
 
 *.pb.go
 *.micro.go
@@ -37,3 +37,9 @@ node_modules
 .zip
 .idea
 config.toml
+ssl/
+ssl/*
+*.key
+*.cer
+*.crt
+*.pem

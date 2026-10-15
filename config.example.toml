@@ -4,3 +4,6 @@ serverPort = 8787
 keyLength = 6
 mysqDsn = "root:LuXXX@tcp(hXXX:3306)/XXX?charset=utf8mb4&parseTime=true&loc=Local"
 
+[note.ssl]
+cert_file = "ssl/fullchain.cer"
+key_file = "ssl/home.shixinyi.cn.key"
