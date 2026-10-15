@@ -432,6 +432,32 @@
                 }
             });
         }
+        fitArticleTitle();
+        window.addEventListener('resize', fitArticleTitle);
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(fitArticleTitle);
+        }
+    }
+    function fitArticleTitle() {
+        var titleElem = document.querySelector('.article-title');
+        if (!titleElem) return;
+        var max = 44, min = 16;
+        titleElem.style.fontSize = max + 'px';
+        titleElem.style.whiteSpace = 'nowrap';
+        var available = titleElem.clientWidth;
+        var needed = titleElem.scrollWidth;
+        if (needed > available && available > 0) {
+            var ideal = Math.floor(max * (available / needed));
+            var finalSize = Math.max(min, Math.min(max, ideal));
+            titleElem.style.fontSize = finalSize + 'px';
+            while (finalSize > min && titleElem.scrollWidth > titleElem.clientWidth) {
+                finalSize--;
+                titleElem.style.fontSize = finalSize + 'px';
+            }
+            if (finalSize === min && titleElem.scrollWidth > titleElem.clientWidth) {
+                titleElem.style.whiteSpace = 'normal';
+            }
+        }
     }
     function initCodeViewer(text) {
         var readGutter = document.getElementById('read-code-gutter');
