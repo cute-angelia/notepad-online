@@ -1,30 +1,12 @@
 package notepad
 
-import (
-	"net/http"
-	"strings"
+import "github.com/gin-gonic/gin"
 
-	"github.com/cute-angelia/go-utils/db/igorm"
-	"github.com/gin-gonic/gin"
-	"note/model"
-)
-
-func RawHandle(ctx *gin.Context) {
-	tag := strings.TrimSpace(ctx.Param("id"))
-	if tag == "" || tag == "favicon.ico" || tag == "robots.txt" {
-		ctx.Status(http.StatusNotFound)
-		return
+func (s *Server) Raw(c *gin.Context) {
+	if n, ok := s.find(c); ok {
+		noCache(c)
+		c.Header("Content-Type", "text/plain; charset=utf-8")
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.String(200, n.Text)
 	}
-
-	orm, err := igorm.GetGormMysql("notepad")
-	if err != nil || orm == nil {
-		ctx.Status(http.StatusInternalServerError)
-		return
-	}
-	msg := model.NotepadModel{}
-	orm.Where("tag = ?", tag).First(&msg)
-
-	ctx.Header("Content-Type", "text/plain; charset=utf-8")
-	ctx.Header("X-Content-Type-Options", "nosniff")
-	ctx.String(http.StatusOK, msg.Text)
 }

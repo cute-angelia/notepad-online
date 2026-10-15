@@ -1,75 +1,132 @@
 package notepad
 
 import (
-	"github.com/cute-angelia/go-utils/db/igorm"
+	"errors"
+
 	"github.com/gin-gonic/gin"
-	"net/http"
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"note/model"
-	"strings"
-	"time"
 )
 
-func ProcessHandle(ctx *gin.Context) {
-	tag := strings.TrimSpace(ctx.Param("id"))
-	if tag == "" || tag == "favicon.ico" || tag == "robots.txt" {
-		ctx.Status(http.StatusNotFound)
-		return
+func validateNote(n model.NotepadModel) string {
+	if len([]rune(n.Text)) > 100000 {
+		return "正文不能超过 100,000 个字符"
 	}
-
-	// Tag length validation
-	if len([]rune(tag)) > 128 {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Tag length cannot exceed 128 characters"})
-		return
+	if len([]rune(n.Title)) > 200 {
+		return "标题不能超过 200 个字符"
 	}
-
-	if ctx.Request.Method == http.MethodPost {
-		text := ctx.Request.FormValue("text")
-		// Text length validation (max 100,000 characters)
-		if len([]rune(text)) > 100000 {
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Content exceeds maximum length limit"})
-			return
+	if n.DocumentType != "text" && n.DocumentType != "markdown" {
+		return "请选择纯文本或 Markdown"
+	}
+	return ""
+}
+func (s *Server) Save(c *gin.Context) {
+	if !validTag(c.Param("id")) {
+		status := 404
+		if len([]rune(c.Param("id"))) > 128 {
+			status = 400
 		}
-
-		orm, err := igorm.GetGormMysql("notepad")
-		if err != nil || orm == nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Database service unavailable"})
-			return
-		}
-
-		msg := model.NotepadModel{}
-		orm.Where("tag = ?", tag).First(&msg)
-
-		now := time.Now().Format("2006-01-02 15:04:05")
-		if msg.Id == 0 {
-			msg.Tag = tag
-			msg.Text = text
-			msg.CreateTime = now
-			msg.UpdateTime = now
-			orm.Create(&msg)
-		} else {
-			orm.Model(&msg).Updates(map[string]interface{}{
-				"text":        text,
-				"update_time": now,
-			})
-		}
-		ctx.JSON(http.StatusOK, gin.H{"status": "ok"})
+		c.Status(status)
 		return
 	}
-
-	orm, err := igorm.GetGormMysql("notepad")
-	if err != nil || orm == nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Database service unavailable"})
+	if err := c.Request.ParseForm(); err != nil {
+		c.JSON(400, gin.H{"error": "无效请求"})
 		return
 	}
-
-	msg := model.NotepadModel{}
-	orm.Where("tag = ?", tag).First(&msg)
-
-	if ctx.Request.Method == http.MethodGet {
-		ctx.HTML(http.StatusOK, "index.html", gin.H{
-			"title": "免登录 可分享 实时保存的记事本",
-			"tag":   tag,
-			"text":  msg.Text,
-		})
+	if len([]rune(c.PostForm("text"))) > 100000 {
+		c.JSON(400, gin.H{"error": "正文不能超过 100,000 个字符"})
+		return
+	}
+	secret := c.PostForm("secret")
+	if secret != "" && !validSecret(secret) {
+		c.JSON(400, gin.H{"error": "秘钥至少 4 个字符，最多 72 字节"})
+		return
+	}
+	status := 200
+	var until int64
+	message := ""
+	err := s.DB.Transaction(func(tx *gorm.DB) error {
+		var n model.NotepadModel
+		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tag = ?", c.Param("id")).First(&n).Error; e != nil {
+			if errors.Is(e, gorm.ErrRecordNotFound) {
+				status = 404
+				return nil
+			}
+			return e
+		}
+		now := s.Now()
+		normalizeLock(&n, now)
+		if n.Locked > now.Unix() {
+			status = 423
+			until = n.Locked
+			return nil
+		}
+		allowed, e := s.authorized(tx, c, n)
+		if e != nil {
+			return e
+		}
+		if !allowed {
+			status = 403
+			return nil
+		}
+		if _, ok := c.Request.PostForm["text"]; ok {
+			n.Text = c.PostForm("text")
+		}
+		if _, ok := c.Request.PostForm["title"]; ok {
+			n.Title = c.PostForm("title")
+		}
+		if _, ok := c.Request.PostForm["document_type"]; ok {
+			n.DocumentType = c.PostForm("document_type")
+		}
+		if message = validateNote(n); message != "" {
+			status = 400
+			return nil
+		}
+		secretChanged := secret != "" && bcrypt.CompareHashAndPassword([]byte(n.Secret), []byte(secret)) != nil
+		if secretChanged {
+			hash, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
+			if err != nil {
+				return err
+			}
+			n.Secret = string(hash)
+		}
+		updates := lockFields(n)
+		updates["text"] = n.Text
+		updates["title"] = n.Title
+		updates["document_type"] = n.DocumentType
+		updates["secret"] = n.Secret
+		updates["update_time"] = s.Now().Format("2006-01-02 15:04:05")
+		if e = tx.Model(&n).Updates(updates).Error; e != nil {
+			return e
+		}
+		if secretChanged {
+			token, e := s.browser(c, true)
+			if e != nil {
+				return e
+			}
+			if e = tx.Where("note_id = ?", n.Id).Delete(&model.BrowserGrant{}).Error; e != nil {
+				return e
+			}
+			return s.grant(tx, n, token)
+		}
+		return nil
+	})
+	if err != nil {
+		serverError(c)
+		return
+	}
+	switch status {
+	case 423:
+		lockedReply(c, until)
+	case 403:
+		c.JSON(403, gin.H{"error": "编辑授权已失效，请重新输入秘钥"})
+	case 404:
+		c.Status(404)
+	case 400:
+		c.JSON(400, gin.H{"error": message})
+	default:
+		c.JSON(200, gin.H{"status": "ok"})
 	}
 }

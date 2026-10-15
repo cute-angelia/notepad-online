@@ -39,8 +39,13 @@ func main() {
 	).MustInitMysql()
 
 	// 初始化表结构
-	orm, _ := igorm.GetGormMysql("notepad")
-	orm.AutoMigrate(&model.NotepadModel{})
+	orm, err := igorm.GetGormMysql("notepad")
+	if err != nil || orm == nil {
+		log.Fatal("database service unavailable")
+	}
+	if err := model.Migrate(orm); err != nil {
+		log.Fatalf("database migration failed: %v", err)
+	}
 
 	// Gin
 	r := gin.Default()
@@ -63,11 +68,7 @@ func main() {
 	noteGroup := r.Group("/")
 	noteGroup.Use(limiter.Middleware())
 	{
-		noteGroup.GET("/", notepad.Index)
-		noteGroup.POST("/:id", notepad.ProcessHandle)
-		noteGroup.GET("/:id", notepad.ProcessHandle)
-		noteGroup.GET("/:id/md", notepad.MarkdownHandle)
-		noteGroup.GET("/:id/raw", notepad.RawHandle)
+		notepad.NewServer(orm).RegisterRoutes(noteGroup)
 	}
 
 	// 设置模板

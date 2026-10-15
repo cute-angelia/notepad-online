@@ -1,22 +1,95 @@
-<html>
+<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex,nofollow" />
-    <title>{{.title}}</title>
-    <link rel="shortcut icon" href="../static/favicon.ico">
-    <link rel="stylesheet" href="../static/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex,nofollow">
+    <title>{{.title}} · 记事本</title>
+    <link rel="icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="/static/markdown.css?v=20261015f">
+    <link rel="stylesheet" href="/static/style.css?v=20261015f">
+    <script defer src="/static/marked.min.js?v=20261015f"></script>
+    <script defer src="/static/render.js?v=20261015f"></script>
+    <script defer src="/static/markdown-tools.js?v=20261015f"></script>
+    <script defer src="/static/outline.js?v=20261015f"></script>
+    <script defer src="/static/script.js?v=20261015f"></script>
 </head>
-<body>
-<div class="container">
-    <textarea id="content" placeholder="">{{.text}}</textarea>
-    <div class="direct-raw">
-        <a target="_blank" href="/" title="新文本">新文本</a>
-        <a target="_blank" href="/{{.tag}}/raw" title="View in raw">纯文本</a>
-        <a target="_blank" href="/{{.tag}}/md" title="View in markdown">MarkDown</a>
+<body data-tag="{{.note.Tag}}" data-editable="{{.editable}}" data-new="{{.newNote}}" data-kind="{{.kind}}" data-locked-until="{{.lockedUntil}}" data-request-edit="{{.requestEdit}}">
+<aside id="document-outline" class="document-outline" hidden>
+    <nav aria-label="文档目录">
+        <h2 class="outline-caption">目录</h2>
+        <ol id="outline-list"></ol>
+        <p id="outline-empty">暂无标题</p>
+    </nav>
+</aside>
+{{if .editable}}
+<header class="site-header">
+    <textarea id="note-title" class="title-input" aria-label="标题" placeholder="标题" maxlength="200" autocomplete="off" rows="1" {{if .locked}}disabled{{end}}>{{.note.Title}}</textarea>
+    <div class="header-actions">
+        <div class="secret-row">
+            <label for="note-secret">秘钥</label>
+            <input id="note-secret" type="text" title="点击复制，直接输入可修改" aria-label="文档秘钥" autocomplete="new-password" placeholder="输入新秘钥，自动保存" value="{{.initialSecret}}" {{if .locked}}disabled{{end}}>
+            <span class="small-divider" aria-hidden="true"></span>
+            <button class="text-button" id="random-secret" type="button" {{if .locked}}disabled{{end}}>随机</button>
+        </div>
+        <span id="save-status" class="save-status" role="status" aria-live="polite">{{if .editable}}{{if .newNote}}尚未保存{{else}}已保存{{end}}{{else}}只读分享{{end}}</span>
+        <a class="quiet-link" href="/" target="_blank" rel="noopener">新建</a>
+        <button class="button button-outline" id="share-button" type="button"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 6H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-2M10 3h7v7M8 12l9-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>复制链接</span></button>
+
     </div>
-</div>
-<pre id="printable"></pre>
-<script src="../static/script.js"></script>
+</header>
+{{end}}
+<main class="document {{if not .editable}}reader{{end}}" id="document">
+    {{if not .editable}}
+    <section class="document-heading">
+        <h1 class="article-title">{{.title}}<a class="edit-icon" id="edit-link" href="{{.editURL}}" aria-label="编辑文档" title="编辑文档"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L21 7a2.1 2.1 0 0 0-4-4L5 15l-1 5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></a></h1>
+    </section>
+    {{end}}
+    <div id="notice" class="notice" role="status" {{if not .locked}}hidden{{end}}>本文档今天已锁定，暂时无法编辑。<span id="lock-time"></span></div>
+    {{if .editable}}
+    <div class="editor-controls">
+        <div class="type-switch" role="group" aria-label="文档类型">
+            <button type="button" data-kind="markdown" aria-pressed="{{eq .kind "markdown"}}" {{if .locked}}disabled{{end}}>Markdown</button>
+            <button type="button" data-kind="text" aria-pressed="{{eq .kind "text"}}" {{if .locked}}disabled{{end}}>纯文本</button>
+        </div>
+        <button id="preview-button" class="text-button preview-toggle" type="button" aria-pressed="false">◧ <span>实时预览</span></button>
+    </div>
+    <div id="markdown-toolbar" class="markdown-toolbar" role="toolbar" aria-label="Markdown 格式工具">
+        <button type="button" data-format="heading" aria-label="插入三级标题" title="三级标题">H<span>3</span></button>
+        <button type="button" data-format="bold" aria-label="加粗" title="加粗"><strong>B</strong></button>
+        <button type="button" data-format="list" aria-label="插入列表" title="列表">☷</button>
+        <span class="toolbar-divider" aria-hidden="true"></span>
+        <button type="button" data-format="link" aria-label="插入链接" title="链接"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m8 12 4-4M7 7l2-2a3.5 3.5 0 0 1 5 5l-2 2M13 13l-2 2a3.5 3.5 0 0 1-5-5l2-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+        <button type="button" data-format="code" aria-label="插入代码块" title="代码块">〈/〉</button>
+        <button type="button" data-format="table" aria-label="插入表格" title="表格"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 8h14M3 12h14M8 3v14M12 3v14" stroke="currentColor" stroke-width="1.2"/></svg></button>
+        <span class="toolbar-hint">写下此刻的想法</span>
+    </div>
+    <div class="editor-layout" id="editor-layout">
+        <div class="source-pane"><textarea id="content" class="source-editor" aria-label="正文" placeholder="写点什么……" spellcheck="false" {{if .locked}}readonly{{end}}>{{.note.Text}}</textarea></div>
+        <section id="preview-pane" class="preview-pane" aria-label="实时预览" hidden><span class="pane-label">预览</span><div id="preview-content" class="markdown-body"></div></section>
+    </div>
+    <footer class="document-footer"><span>让想法留在这里</span><span id="mobile-save-status" class="mobile-save-status" aria-live="polite">{{if .newNote}}尚未保存{{else}}已保存{{end}}</span><span id="word-count"></span></footer>
+    {{else}}
+    <textarea id="raw-content" hidden>{{.note.Text}}</textarea>
+    <article id="read-content" class="markdown-body article-body">{{if eq .kind "text"}}{{.note.Text}}{{end}}</article>
+    <footer class="document-footer"><span>记下，分享。</span><a href="/" target="_blank" rel="noopener">写一篇自己的</a></footer>
+    {{end}}
+</main>
+<dialog id="unlock-dialog" class="unlock-dialog" {{if .requestEdit}}open{{end}}>
+    <form id="unlock-form">
+        <button class="dialog-close" type="button" id="close-unlock" aria-label="关闭">×</button>
+        <p class="dialog-eyebrow">继续创作</p>
+        <h2>输入文档秘钥</h2>
+        <p class="dialog-description">需要输入秘钥才能编辑</p>
+        <label class="sr-only" for="unlock-secret">秘钥</label><input id="unlock-secret" type="text" autocomplete="current-password" placeholder="秘钥" required maxlength="72">
+        <p class="unlock-error" id="unlock-error" role="alert"></p>
+        <button class="button button-solid" id="unlock-submit" type="submit">进入编辑</button>
+    </form>
+</dialog>
+<dialog id="share-dialog" class="unlock-dialog">
+    <h2>分享链接</h2><p class="dialog-description">复制下方链接，其他人只能查看。</p>
+    <input id="share-url" type="url" readonly aria-label="只读分享链接">
+    <button class="button button-solid" id="close-share" type="button">完成</button>
+</dialog>
 </body>
 </html>

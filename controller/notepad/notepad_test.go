@@ -11,9 +11,7 @@ import (
 )
 
 func TestProcessHandleValidations(t *testing.T) {
-	r := gin.New()
-	r.GET("/:id", ProcessHandle)
-	r.POST("/:id", ProcessHandle)
+	_, r := testServer(t)
 
 	// Case 1: Reserved tag "favicon.ico"
 	w1 := httptest.NewRecorder()
@@ -47,6 +45,7 @@ func TestProcessHandleValidations(t *testing.T) {
 	w4 := httptest.NewRecorder()
 	req4, _ := http.NewRequest(http.MethodPost, "/testnote", strings.NewReader(form.Encode()))
 	req4.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req4.Header.Set("X-Notepad-Request", "1")
 	r.ServeHTTP(w4, req4)
 	if w4.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for text exceeding max limit, got %d", w4.Code)
@@ -54,8 +53,7 @@ func TestProcessHandleValidations(t *testing.T) {
 }
 
 func TestRawHandleReserved(t *testing.T) {
-	r := gin.New()
-	r.GET("/:id/raw", RawHandle)
+	_, r := testServer(t)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/favicon.ico/raw", nil)
@@ -66,8 +64,7 @@ func TestRawHandleReserved(t *testing.T) {
 }
 
 func TestMarkdownHandleReserved(t *testing.T) {
-	r := gin.New()
-	r.GET("/:id/md", MarkdownHandle)
+	_, r := testServer(t)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodGet, "/robots.txt/md", nil)

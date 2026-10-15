@@ -1,0 +1,24 @@
+2026/10/15 19:32:42 logger.go:112: 记录日志 ./notepad.log
+2026/10/15 19:32:42 componentMysql.go:35: component.db.gorm 初始化数据库 notepad
+2026/10/15 19:32:48 main.go:99: run: http://127.0.0.1:38101
+2026/10/15 19:38:28 logger.go:112: 记录日志 ./notepad.log
+2026/10/15 19:38:28 componentMysql.go:35: component.db.gorm 初始化数据库 notepad
+2026/10/15 19:38:29 main.go:99: run: http://127.0.0.1:38101
+2026/10/15 19:42:41 logger.go:112: 记录日志 ./notepad.log
+2026/10/15 19:42:41 componentMysql.go:35: component.db.gorm 初始化数据库 notepad
+2026/10/15 19:42:41 main.go:99: run: http://127.0.0.1:38101
+2026/10/15 19:43:47 logger.go:112: 记录日志 ./notepad.log
+2026/10/15 19:43:47 componentMysql.go:35: component.db.gorm 初始化数据库 notepad
+2026/10/15 19:43:48 main.go:99: run: http://127.0.0.1:38101
+2026/10/15 19:47:28 logger.go:112: 记录日志 ./notepad.log
+2026/10/15 19:47:28 componentMysql.go:35: component.db.gorm 初始化数据库 notepad
+2026/10/15 19:47:29 main.go:99: run: http://127.0.0.1:38101
+2026/10/15 19:52:18 logger.go:112: 记录日志 ./notepad.log
+2026/10/15 19:52:18 componentMysql.go:35: component.db.gorm 初始化数据库 notepad
+2026/10/15 19:52:19 main.go:99: run: http://127.0.0.1:38101
+2026/10/15 19:53:31 logger.go:112: 记录日志 ./notepad.log
+2026/10/15 19:53:31 componentMysql.go:35: component.db.gorm 初始化数据库 notepad
+2026/10/15 19:53:32 main.go:99: run: http://127.0.0.1:38101
+2026/10/15 19:55:33 logger.go:112: 记录日志 ./notepad.log
+2026/10/15 19:55:33 componentMysql.go:35: component.db.gorm 初始化数据库 notepad
+2026/10/15 19:55:34 main.go:99: run: http://127.0.0.1:38101
