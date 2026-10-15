@@ -466,3 +466,48 @@ func TestUnlockPlaintext(t *testing.T) {
 		t.Fatalf("plain unlock failed: %d", w.Code)
 	}
 }
+
+func TestCodeDocumentType(t *testing.T) {
+	_, r := testServer(t)
+	w := request(r, "POST", "/api/notes", url.Values{
+		"tag":           {"code-test"},
+		"title":         {"Code Example"},
+		"text":          {"fmt.Println(\"Hello, World!\")"},
+		"document_type": {"code"},
+		"secret":        {"code-secret"},
+	})
+	if w.Code != 201 {
+		t.Fatalf("create code note failed: %d %s", w.Code, w.Body.String())
+	}
+	cookies := w.Result().Cookies()
+
+	// View page
+	w = request(r, "GET", "/code-test", nil)
+	if w.Code != 200 {
+		t.Fatalf("view code note failed: %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `data-kind="code"`) {
+		t.Fatalf("expected data-kind=code in view page, got body: %s", body)
+	}
+	if !strings.Contains(body, "fmt.Println(&#34;Hello, World!&#34;)") && !strings.Contains(body, "fmt.Println(\"Hello, World!\")") {
+		t.Fatalf("expected code content in view page")
+	}
+
+	// Update to another code text
+	w = request(r, "POST", "/code-test", url.Values{
+		"title":         {"Updated Code"},
+		"text":          {"function add(a, b) { return a + b; }"},
+		"document_type": {"code"},
+	}, cookies...)
+	if w.Code != 200 {
+		t.Fatalf("update code note failed: %d %s", w.Code, w.Body.String())
+	}
+
+	// Verify raw endpoint
+	w = request(r, "GET", "/code-test/raw", nil)
+	if w.Body.String() != "function add(a, b) { return a + b; }" {
+		t.Fatalf("raw code content mismatch: %q", w.Body.String())
+	}
+}
+

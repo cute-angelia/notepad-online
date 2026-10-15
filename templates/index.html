@@ -6,13 +6,13 @@
     <meta name="robots" content="noindex,nofollow">
     <title>{{.title}} · 记事本</title>
     <link rel="icon" href="/static/favicon.ico">
-    <link rel="stylesheet" href="/static/markdown.css?v=20261015j">
-    <link rel="stylesheet" href="/static/style.css?v=20261015j">
-    <script defer src="/static/marked.min.js?v=20261015j"></script>
-    <script defer src="/static/render.js?v=20261015j"></script>
-    <script defer src="/static/markdown-tools.js?v=20261015j"></script>
-    <script defer src="/static/outline.js?v=20261015j"></script>
-    <script defer src="/static/script.js?v=20261015j"></script>
+    <link rel="stylesheet" href="/static/markdown.css?v=20261015k">
+    <link rel="stylesheet" href="/static/style.css?v=20261015k">
+    <script defer src="/static/marked.min.js?v=20261015k"></script>
+    <script defer src="/static/render.js?v=20261015k"></script>
+    <script defer src="/static/markdown-tools.js?v=20261015k"></script>
+    <script defer src="/static/outline.js?v=20261015k"></script>
+    <script defer src="/static/script.js?v=20261015k"></script>
 </head>
 <body data-slug="{{.note.Slug}}" data-tag="{{.note.Slug}}" data-editable="{{.editable}}" data-new="{{.newNote}}" data-kind="{{.kind}}" data-locked-until="{{.lockedUntil}}" data-request-edit="{{.requestEdit}}">
 <aside id="document-outline" class="document-outline" hidden>
@@ -51,6 +51,7 @@
         <div class="type-switch" role="group" aria-label="文档类型">
             <button type="button" data-kind="markdown" aria-pressed="{{eq .kind "markdown"}}" {{if .locked}}disabled{{end}}>Markdown</button>
             <button type="button" data-kind="text" aria-pressed="{{eq .kind "text"}}" {{if .locked}}disabled{{end}}>纯文本</button>
+            <button type="button" data-kind="code" aria-pressed="{{eq .kind "code"}}" {{if .locked}}disabled{{end}}>代码</button>
         </div>
         <button id="preview-button" class="text-button preview-toggle" type="button" aria-pressed="false">◧ <span>实时预览</span></button>
     </div>
@@ -65,13 +66,35 @@
         <span class="toolbar-hint">写下此刻的想法</span>
     </div>
     <div class="editor-layout" id="editor-layout">
-        <div class="source-pane"><textarea id="content" class="source-editor" aria-label="正文" placeholder="写点什么……" spellcheck="false" {{if .locked}}readonly{{end}}>{{.note.Text}}</textarea></div>
+        <div class="source-pane">
+            <div class="code-editor-wrap" id="code-editor-wrap">
+                <div class="code-gutter" id="code-gutter" aria-hidden="true"></div>
+                <textarea id="content" class="source-editor" aria-label="正文" placeholder="写点什么……" spellcheck="false" {{if .locked}}readonly{{end}}>{{.note.Text}}</textarea>
+            </div>
+        </div>
         <section id="preview-pane" class="preview-pane" aria-label="实时预览" hidden><span class="pane-label">预览</span><div id="preview-content" class="markdown-body"></div></section>
     </div>
     <footer class="document-footer"><span>让想法留在这里</span><span id="mobile-save-status" class="mobile-save-status" aria-live="polite">{{if .newNote}}尚未保存{{else}}已保存{{end}}</span><span id="word-count"></span></footer>
     {{else}}
     <textarea id="raw-content" hidden>{{.note.Text}}</textarea>
-    <article id="read-content" class="markdown-body article-body">{{if eq .kind "text"}}{{.note.Text}}{{end}}</article>
+    <article id="read-content" class="markdown-body article-body" {{if eq .kind "code"}}hidden{{end}}>{{if eq .kind "text"}}{{.note.Text}}{{end}}</article>
+    {{if eq .kind "code"}}
+    <div class="code-display-wrap" id="code-display-wrap">
+        <div class="code-display-header">
+            <div class="code-display-info">
+                <span class="code-badge">代码</span>
+                <span class="code-lines-count" id="code-lines-count"></span>
+            </div>
+            <button type="button" class="button button-outline code-copy-button" id="code-copy-button">
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="7" y="7" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M4 13V5a1.5 1.5 0 0 1 1.5-1.5H12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                <span>复制代码</span>
+            </button>
+        </div>
+        <div class="code-display-box">
+            <div class="code-display-gutter" id="read-code-gutter" aria-hidden="true"></div>
+            <pre class="code-display-code"><code id="read-code-content">{{.note.Text}}</code></pre>
+        </div>
+    </div>
     <footer class="document-footer"><span>记下，分享。</span><a href="/" target="_blank" rel="noopener">写一篇自己的</a></footer>
     {{end}}
 </main>

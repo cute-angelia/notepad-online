@@ -7,7 +7,7 @@
     var secret = document.getElementById('note-secret'), preview = document.getElementById('preview-pane');
     var previewButton = document.getElementById('preview-button'), toolbar = document.getElementById('markdown-toolbar');
     var shareButton = document.getElementById('share-button'), notice = document.getElementById('notice');
-    var unlockDialog = document.getElementById('unlock-dialog');
+    var unlockDialog = document.getElementById('unlock-dialog'), codeGutter = document.getElementById('code-gutter');
     var lockedUntil = Number(body.dataset.lockedUntil), blocked = lockedUntil * 1000 > Date.now();
     var secretStorageKey = 'notepad:secret:' + tag;
     function rememberSecret(value) {
@@ -119,6 +119,23 @@
         var ratio = Math.max(0, Math.min(1, source.scrollTop / sourceMax));
         target.scrollTop = ratio * targetMax;
     }
+    function updateCodeEditor() {
+        if (!codeGutter || !textarea) return;
+        var lines = textarea.value.split('\n');
+        var count = lines.length;
+        if (textarea._lastLineCount !== count) {
+            textarea._lastLineCount = count;
+            var digits = String(count).length;
+            var width = Math.max(44, digits * 8 + 20);
+            codeGutter.style.width = width + 'px';
+            var nums = [];
+            for (var i = 1; i <= count; i++) {
+                nums.push(i);
+            }
+            codeGutter.textContent = nums.join('\n');
+        }
+        codeGutter.scrollTop = textarea.scrollTop;
+    }
     function updateDocument() {
         if (!editable) return;
         doc.dataset.kind = kind;
@@ -134,6 +151,9 @@
             requestAnimationFrame(function () {
                 syncScroll(textarea, preview);
             });
+        }
+        if (kind === 'code') {
+            updateCodeEditor();
         }
         document.getElementById('word-count').textContent = Array.from(textarea.value).length.toLocaleString() + ' 字';
         document.title = (title.value.trim() || '未命名文档') + ' · 记事本';
@@ -272,6 +292,9 @@
         preview.addEventListener('touchend', clearHover);
 
         textarea.addEventListener('scroll', function () {
+            if (kind === 'code' && codeGutter) {
+                codeGutter.scrollTop = textarea.scrollTop;
+            }
             if (activeScrollPane === 'preview') return;
             syncScroll(textarea, preview);
         }, { passive: true });

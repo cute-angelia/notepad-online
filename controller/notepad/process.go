@@ -16,8 +16,8 @@ func validateNote(n model.NotepadModel) string {
 	if len([]rune(n.Title)) > 200 {
 		return "标题不能超过 200 个字符"
 	}
-	if n.DocumentType != "text" && n.DocumentType != "markdown" {
-		return "请选择纯文本或 Markdown"
+	if n.DocumentType != "text" && n.DocumentType != "markdown" && n.DocumentType != "code" {
+		return "请选择纯文本、Markdown 或代码模式"
 	}
 	return ""
 }
