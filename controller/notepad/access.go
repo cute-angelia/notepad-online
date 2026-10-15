@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"note/model"
@@ -101,13 +100,7 @@ func verifySecret(storedSecret, inputSecret string) bool {
 	if storedSecret == "" || inputSecret == "" {
 		return false
 	}
-	if storedSecret == inputSecret {
-		return true
-	}
-	if strings.HasPrefix(storedSecret, "$2a$") || strings.HasPrefix(storedSecret, "$2b$") {
-		return bcrypt.CompareHashAndPassword([]byte(storedSecret), []byte(inputSecret)) == nil
-	}
-	return false
+	return storedSecret == inputSecret
 }
 
 func validSecret(secret string) bool {

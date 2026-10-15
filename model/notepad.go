@@ -3,7 +3,6 @@ package model
 import (
 	"fmt"
 
-	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -55,11 +54,7 @@ func Migrate(db *gorm.DB) error {
 		return err
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
-		hash, err := bcrypt.GenerateFromPassword([]byte("twins"), bcrypt.DefaultCost)
-		if err != nil {
-			return err
-		}
-		if err = tx.Model(&NotepadModel{}).Where("secret = ? OR secret IS NULL", "").Update("secret", string(hash)).Error; err != nil {
+		if err := tx.Model(&NotepadModel{}).Where("secret = ? OR secret IS NULL", "").Update("secret", "twins").Error; err != nil {
 			return err
 		}
 		return tx.Model(&NotepadModel{}).Where("document_type = ? OR document_type IS NULL", "").Update("document_type", "text").Error
