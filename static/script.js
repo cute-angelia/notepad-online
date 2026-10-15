@@ -336,12 +336,98 @@
                 updateDocument(); schedule();
             });
         });
+        textarea.addEventListener('keydown', function (e) {
+            if (kind !== 'code' || blocked) return;
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                var start = this.selectionStart, end = this.selectionEnd, val = this.value;
+                if (e.shiftKey) {
+                    var lineStart = val.lastIndexOf('\n', start - 1) + 1;
+                    var lineEnd = val.indexOf('\n', end);
+                    if (lineEnd === -1) lineEnd = val.length;
+                    var slice = val.slice(lineStart, lineEnd);
+                    var lines = slice.split('\n');
+                    var unindented = lines.map(function (line) {
+                        if (line.indexOf('    ') === 0) return line.slice(4);
+                        if (line.indexOf('\t') === 0) return line.slice(1);
+                        return line.replace(/^ {1,4}/, '');
+                    }).join('\n');
+                    var diff = slice.length - unindented.length;
+                    this.setRangeText(unindented, lineStart, lineEnd, 'preserve');
+                    this.setSelectionRange(Math.max(lineStart, start - (slice.indexOf(' ') === 0 ? 4 : 0)), Math.max(lineStart, end - diff));
+                } else {
+                    if (start !== end && val.slice(start, end).indexOf('\n') !== -1) {
+                        var lineStart = val.lastIndexOf('\n', start - 1) + 1;
+                        var lineEnd = val.indexOf('\n', end);
+                        if (lineEnd === -1) lineEnd = val.length;
+                        var lines = val.slice(lineStart, lineEnd).split('\n');
+                        var indented = lines.map(function (line) { return '    ' + line; }).join('\n');
+                        this.setRangeText(indented, lineStart, lineEnd, 'preserve');
+                        this.setSelectionRange(start + 4, end + (lines.length * 4));
+                    } else {
+                        this.setRangeText('    ', start, end, 'end');
+                    }
+                }
+                updateDocument();
+                schedule();
+            } else if (e.key === 'Enter') {
+                var start = this.selectionStart, val = this.value;
+                var lineStart = val.lastIndexOf('\n', start - 1) + 1;
+                var lineText = val.slice(lineStart, start);
+                var match = lineText.match(/^([ \t]+)/);
+                if (match) {
+                    e.preventDefault();
+                    var indent = match[1];
+                    this.setRangeText('\n' + indent, start, start, 'end');
+                    updateDocument();
+                    schedule();
+                }
+            }
+        });
         window.addEventListener('beforeunload', function (event) {if (changed() && (!isNew || title.value || textarea.value)) {event.preventDefault();event.returnValue = '';}});
         document.addEventListener('keydown', function (event) {if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {event.preventDefault();save().catch(function () {});}});
         updateDocument();
     } else {
         doc.dataset.kind = kind;
-        window.documentOutline.update(document.getElementById('raw-content').value, document.getElementById('read-content'), kind === 'markdown');
+        var rawElem = document.getElementById('raw-content');
+        var rawText = rawElem ? rawElem.value : '';
+        window.documentOutline.update(rawText, document.getElementById('read-content'), kind === 'markdown');
+        if (kind === 'code') {
+            initCodeViewer(rawText);
+        }
+    }
+    function initCodeViewer(text) {
+        var readGutter = document.getElementById('read-code-gutter');
+        var linesCount = document.getElementById('code-lines-count');
+        var copyBtn = document.getElementById('code-copy-button');
+        var lines = (text || '').split('\n');
+        var count = lines.length;
+        if (linesCount) {
+            linesCount.textContent = '共 ' + count.toLocaleString() + ' 行';
+        }
+        if (readGutter) {
+            var digits = String(count).length;
+            readGutter.style.width = Math.max(44, digits * 8 + 20) + 'px';
+            var nums = [];
+            for (var i = 1; i <= count; i++) {
+                nums.push(i);
+            }
+            readGutter.textContent = nums.join('\n');
+        }
+        if (copyBtn) {
+            copyBtn.addEventListener('click', async function () {
+                var ok = await copyText(text);
+                if (ok) {
+                    showToast('代码已复制');
+                    var span = copyBtn.querySelector('span');
+                    if (span) {
+                        var original = span.textContent;
+                        span.textContent = '已复制 ✓';
+                        setTimeout(function () { span.textContent = original; }, 2000);
+                    }
+                }
+            });
+        }
     }
     if (blocked) {if (unlockDialog.open) unlockDialog.close();lock(lockedUntil);}
     else if (body.dataset.requestEdit === 'true') openUnlock();
