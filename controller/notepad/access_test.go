@@ -67,6 +67,9 @@ func TestPublicLinkCannotWriteAndDoesNotExposeSecret(t *testing.T) {
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "My title") {
 		t.Fatalf("viewer: %d", w.Code)
 	}
+	if !strings.Contains(w.Body.String(), `id="reader-copy-content"`) || !strings.Contains(w.Body.String(), `id="reader-copy-link"`) {
+		t.Fatal("expected reader copy buttons in markdown viewer")
+	}
 	if strings.Contains(w.Body.String(), "apple") || strings.Contains(w.Body.String(), "$2a$") || strings.Contains(w.Body.String(), `data-editable="true"`) {
 		t.Fatal("public view exposes editor/secret")
 	}
@@ -493,8 +496,11 @@ func TestCodeDocumentType(t *testing.T) {
 	if !strings.Contains(body, "fmt.Println(&#34;Hello, World!&#34;)") && !strings.Contains(body, "fmt.Println(\"Hello, World!\")") {
 		t.Fatalf("expected code content in view page")
 	}
-	if !strings.Contains(body, `id="reader-copy-content"`) || !strings.Contains(body, `id="reader-copy-link"`) {
-		t.Fatalf("expected reader copy buttons in view page")
+	if strings.Contains(body, `id="reader-copy-content"`) {
+		t.Fatalf("did not expect reader-copy-content in code view page")
+	}
+	if !strings.Contains(body, `id="reader-copy-link"`) {
+		t.Fatalf("expected reader-copy-link in code view page")
 	}
 
 	// Update to another code text

@@ -500,6 +500,10 @@ input,textarea {
     color:#8c959f !important;
 }
 
+.reader[data-kind="code"] #reader-copy-content {
+    display:none !important;
+}
+
 /* Code Display Mode (Reader) - Daytime light */
 .code-display-wrap {
     background:#ffffff !important;
