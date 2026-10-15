@@ -395,6 +395,43 @@
         if (kind === 'code') {
             initCodeViewer(rawText);
         }
+        var readerCopyContent = document.getElementById('reader-copy-content');
+        if (readerCopyContent) {
+            readerCopyContent.addEventListener('click', async function () {
+                var ok = await copyText(rawText);
+                if (ok) {
+                    showToast('内容已复制');
+                    var span = readerCopyContent.querySelector('span');
+                    if (span) {
+                        span.textContent = '内容已复制';
+                        setTimeout(function () { span.textContent = '复制内容'; }, 2000);
+                    }
+                }
+            });
+        }
+        var readerCopyLink = document.getElementById('reader-copy-link');
+        if (readerCopyLink) {
+            readerCopyLink.addEventListener('click', async function () {
+                var url = new URL('/' + encodeURIComponent(tag), window.location.origin).href;
+                var ok = await copyText(url);
+                if (ok) {
+                    showToast('分享链接已复制');
+                    var span = readerCopyLink.querySelector('span');
+                    if (span) {
+                        span.textContent = '链接已复制';
+                        setTimeout(function () { span.textContent = '复制链接'; }, 2000);
+                    }
+                } else {
+                    var input = document.getElementById('share-url');
+                    var shareDlg = document.getElementById('share-dialog');
+                    if (input && shareDlg) {
+                        input.value = url;
+                        shareDlg.showModal();
+                        input.select();
+                    }
+                }
+            });
+        }
     }
     function initCodeViewer(text) {
         var readGutter = document.getElementById('read-code-gutter');

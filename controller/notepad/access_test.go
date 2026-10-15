@@ -493,6 +493,9 @@ func TestCodeDocumentType(t *testing.T) {
 	if !strings.Contains(body, "fmt.Println(&#34;Hello, World!&#34;)") && !strings.Contains(body, "fmt.Println(\"Hello, World!\")") {
 		t.Fatalf("expected code content in view page")
 	}
+	if !strings.Contains(body, `id="reader-copy-content"`) || !strings.Contains(body, `id="reader-copy-link"`) {
+		t.Fatalf("expected reader copy buttons in view page")
+	}
 
 	// Update to another code text
 	w = request(r, "POST", "/code-test", url.Values{
