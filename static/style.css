@@ -199,6 +199,17 @@ input,textarea {
     vertical-align:middle;
     color:var(--muted);
     border-radius:50%;
+    opacity:0;
+    transition:opacity .15s ease,background .15s,color .15s;
+}
+.document-heading:hover .edit-icon,
+.edit-icon:focus-visible {
+    opacity:1;
+}
+@media (hover: none) {
+    .edit-icon {
+        opacity:.6;
+    }
 }
 .edit-icon:hover {
     color:var(--ink);
