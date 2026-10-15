@@ -1,86 +1,128 @@
-# 在线记事本
+# 在线记事本 (Notepad Online)
 
-一个简单的记事本，可以方便多设备之间传递文本消息
+轻量、安全、多端自适应的在线记事本服务。支持 Markdown、纯文本及代码三种模式，可方便地在多设备间快速传递文本、代码片段及敏感配置信息。
 
-如：有些时候，发布服务后，发现要传递一些秘钥，用这个可以很方便
+---
 
+## ✨ 核心特性
 
-支持类型：
-- 文本
-- markdown
-- 代码 (code)
+- **三种文档模式**：
+  - **Markdown 模式**：内置格式工具栏、左右实时预览、数学公式与自动大纲目录（TOC）。
+  - **纯文本 (Text) 模式**：极简清爽，专注轻量文本传递。
+  - **代码 (Code) 模式**：自带 GitHub 风格浅色高亮、行号引导栏、Tab 智能缩进及一键复制代码。
+- **只读与编辑分离**：
+  - `/:id` 默认只读分享，提供一键「复制内容」与「复制链接」。
+  - `/:id/edit` 为独立编辑入口，未授权浏览器必须校验文档秘钥。
+- **完善的安全机制**：
+  - **秘钥安全**：采用 bcrypt 哈希单向存储，服务端不存明文；新建时自动生成易记单词秘钥，支持一键随机刷新。
+  - **防暴力破解**：单个文档北京时间单日累计输错秘钥 10 次将自动触发当日锁定，次日零点自动恢复。
+  - **Cookie 凭据授权**：验证成功后通过 HttpOnly、SameSite 安全 Cookie 维持一年免密编辑。
+  - **安全防护**：内置严格安全响应头（X-Frame-Options、HSTS、CSP 等）、请求体大小限制及 IP 级频率限制。
+- **协议自适应 (HTTP / HTTPS)**：
+  - 基于 `cmux` 实现单端口同时支持 HTTP 与 HTTPS 访问。
+  - 自动探测证书文件，本地无证书时自动降级为普通 HTTP，服务器挂载证书时自适应双协议。
+- **多端响应式体验**：
+  - 移动端自动优化界面排版并隐藏复杂工具栏。
+  - 标题长文本智能缩小字号，确保在 PC 端单行水平对齐不折行。
 
-### 使用说明
+---
 
-1. 下载：[releases](https://github.com/cute-angelia/notepad-online/releases)
-2. 同目录新建 config.toml
-        
+## 🖼️ 界面预览
+
+### 1. Markdown 视图
+具备左侧大纲目录树、数学公式解析、自适应单行标题以及复制工具栏：
+![Markdown 视图](docs/images/1.jpg)
+
+### 2. 纯文本视图
+极简清爽的排版，适合设备间快速同步文本与笔记：
+![纯文本视图](docs/images/2.jpg)
+
+### 3. 代码视图
+代码模式展示，配备行号引导槽、自适应等宽字体以及独立的「复制代码」功能：
+![代码视图](docs/images/3.jpg)
+
+---
+
+## 🚀 快速上手
+
+### 1. 下载可执行文件
+前往 [Releases](https://github.com/cute-angelia/notepad-online/releases) 页面下载适合你系统的构建产物。
+
+### 2. 配置 `config.toml`
+在可执行文件同级目录下创建 `config.toml`：
+
 ```toml
 [note]
-# 文件日志
+# 是否开启文件日志
 wirteLogFile = false
-# 运行端口号
+
+# 服务监听端口
 serverPort = 8787
-# 旧版地址长度；新版文档地址使用 128 位随机值
+
+# 文档路径标识符长度
 keyLength = 6
-# mysql dsn
-mysqDsn = "root:LuXXX@tcp(hXXX:3306)/XXX?charset=utf8mb4&parseTime=true&loc=Local"
+
+# MySQL 数据库连接串
+mysqDsn = "user:password@tcp(127.0.0.1:3306)/notepad?charset=utf8mb4&parseTime=true&loc=Local"
+
+# 可选：SSL 证书配置（不配置则默认读取 ssl/ 目录证书，无证书时自动使用纯 HTTP）
+[note.ssl]
+cert_file = "ssl/fullchain.cer"
+key_file = "ssl/home.shixinyi.cn.key"
 ```
 
-
-示例图:
-
-![img](https://raw.githubusercontent.com/cute-angelia/notepad-online/main/s1.jpg)
-
-### 参考
-1. [Sunbalcony note](https://github.com/Sunbalcony/note)
-2. [notepad.pw](https://notepad.pw)
-
-### 编辑与只读分享
-
-- 新建文档默认使用 Markdown，可切换为纯文本，切换不会改写正文。
-- 标题、正文和类型自动保存。电脑支持格式工具栏和左右实时预览；手机隐藏工具栏与预览。
-- 「复制链接」先完成保存，再复制 `/:id` 只读地址。分享显示最新保存的内容。
-- `/:id/edit` 为编辑入口。未授权浏览器需要验证文档秘钥；验证后通过 HttpOnly、SameSite Cookie 记住一年。清理 Cookie 或更换浏览器后需重新验证。
-- 新建时自动生成至少 4 个字母的英文单词秘钥，也可自填。已保存或成功验证的秘钥按文档记在当前浏览器的 localStorage，不设过期时间，编辑页重新加载时会回显；清除浏览器站点数据会移除记录。服务器仍只存哈希，公开查看页不会读取本地秘钥。秘钥直接显示，点击即可复制；「随机」生成新单词，手动输入或随机替换后自动保存，仅在秘钥变化时更换；已授权的编辑器无需再次验证旧秘钥。
-- 更换秘钥保留当前浏览器的权限，其他浏览器需使用新秘钥重新验证。
-- `/:id/raw` 保留原文输出；`/:id/md` 保留 Markdown 查看。旧 `POST /:id` 现在必须提供浏览器授权，不再允许持有公开地址的访客直接修改。
-
-### 数据库升级与锁定
-
-启动会自动迁移表结构，检查错误后才启动 HTTP 服务。建议部署前备份数据库。历史正文和地址保留，文档类型设为 `text`、初始秘钥设为 `twins`；已有新秘钥不会在重启时被覆盖。如果存在重复的 `tag`，启动会报错并停止，需先人工处理重复记录，不会自动删除历史数据。
-
-`notepad` 新增字段：
-
-| 字段 | 用途 |
-| --- | --- |
-| `title` | 标题，最多 200 个字符 |
-| `document_type` | `text`、`markdown` 或 `code` |
-| `secret` | bcrypt 秘钥哈希，不存明文 |
-| `locked` | 锁定截止时间的 Unix 秒时间戳；`0` 表示未锁定 |
-| `failed_attempts` | 当天跨访客累计输错次数 |
-| `failure_day` | 计数日期，按北京时间 |
-
-另建 `browser_grants` 表，保存浏览器随机凭证的摘要、文档授权及到期时间。
-
-同一文档在北京时间当天累计输错秘钥 10 次，将锁定整篇文档直到次日零点。所有人（包括已授权浏览器）均不能保存或更改秘钥，阅读不受影响。验证成功不会清空当天累计失败次数。
-
-手动解锁指定文档：
-
-```sql
-UPDATE notepad SET locked = 0 WHERE tag = '文档ID';
-```
-
-后续编辑或秘钥验证会重置已达到上限的失败计数。到次日零点自动恢复编辑；计数保存在数据库中，不会因重启丢失。
-
-### 开发验证
+### 3. 运行服务
 
 ```bash
-go test -race ./...
-go vet ./...
-go build -o /tmp/notepad-online .
-node --check static/script.js
-node --check static/render.js
+# 直接启动
+./note
+
+# 或通过 PM2 后台守护
+pm2 start pm2_nas.json
 ```
 
-权限与迁移集成测试使用隔离的内存 SQLite；生产仍使用配置中的 MySQL。
+服务启动时会自动检查并执行数据库迁移。
+
+---
+
+## 🧭 路由规范
+
+| 路径 | 说明 |
+| :--- | :--- |
+| `/` | 首页：创建新文档（可自选文档类型并自动生成随机秘钥） |
+| `/:id` | 公开只读页面：呈现已保存文档内容（支持复制内容与分享链接） |
+| `/:id/edit` | 编辑入口：需校验文档秘钥，授权后可实时编辑并自动保存 |
+| `/:id/raw` | 纯文本原始内容直出 |
+| `/:id/md` | Markdown 纯文本直出 |
+
+---
+
+## 🛡️ 安全与防爆破策略
+
+- **失败锁定规则**：单文档当天（北京时间）累计输错秘钥 10 次，文档将立即进入锁定状态直至次日 00:00，期间禁止任何保存或修改，但只读浏览不受影响。
+- **手动应急解锁**：如需立即解除某篇文档的锁定，执行以下 SQL 即可：
+  ```sql
+  UPDATE notepad SET locked = 0 WHERE tag = '文档ID';
+  ```
+
+---
+
+## 🛠️ 本地开发与测试
+
+本项目使用 Go 编写，推荐使用 Go 1.17+ 进行本地构建与测试：
+
+```bash
+# 运行全部单元测试（包含鉴权、迁移、中间件及 webserver 多路复用测试）
+go test -v ./...
+
+# 静态检查与构建
+go vet ./...
+go build -o note main.go
+```
+
+---
+
+## 📌 致谢与参考
+
+- [Sunbalcony note](https://github.com/Sunbalcony/note)
+- [notepad.pw](https://notepad.pw)
