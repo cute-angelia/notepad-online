@@ -43,3 +43,5 @@ ssl/*
 *.cer
 *.crt
 *.pem
+dist/
+dist/*
