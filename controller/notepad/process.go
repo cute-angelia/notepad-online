@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"note/model"
@@ -84,13 +83,9 @@ func (s *Server) Save(c *gin.Context) {
 			status = 400
 			return nil
 		}
-		secretChanged := secret != "" && bcrypt.CompareHashAndPassword([]byte(n.Secret), []byte(secret)) != nil
+		secretChanged := secret != "" && !verifySecret(n.Secret, secret)
 		if secretChanged {
-			hash, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
-			if err != nil {
-				return err
-			}
-			n.Secret = string(hash)
+			n.Secret = secret
 		}
 		updates := lockFields(n)
 		updates["text"] = n.Text

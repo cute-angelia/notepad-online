@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"note/model"
 )
@@ -133,6 +134,16 @@ func (s *Server) Edit(c *gin.Context) {
 			serverError(c)
 			return
 		}
-		s.render(c, n, allowed, false, "", "")
+		initialSecret := ""
+		if allowed {
+			if strings.HasPrefix(n.Secret, "$2a$") || strings.HasPrefix(n.Secret, "$2b$") {
+				if bcrypt.CompareHashAndPassword([]byte(n.Secret), []byte("twins")) == nil {
+					initialSecret = "twins"
+				}
+			} else {
+				initialSecret = n.Secret
+			}
+		}
+		s.render(c, n, allowed, false, initialSecret, "")
 	}
 }

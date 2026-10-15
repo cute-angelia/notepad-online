@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"note/model"
 )
@@ -70,12 +69,7 @@ func (s *Server) Create(c *gin.Context) {
 		c.JSON(400, gin.H{"error": message})
 		return
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
-	if err != nil {
-		serverError(c)
-		return
-	}
-	n.Secret = string(hash)
+	n.Secret = secret
 	now := s.Now().Format("2006-01-02 15:04:05")
 	n.CreateTime = now
 	n.UpdateTime = now

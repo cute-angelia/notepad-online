@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -445,5 +446,44 @@ func TestSavingUnchangedSecretKeepsOtherBrowserAuthorized(t *testing.T) {
 	w = request(r, "POST", "/same-secret", url.Values{"text": {"other browser"}}, other...)
 	if w.Code != 200 {
 		t.Fatalf("unchanged secret revoked another browser: %d", w.Code)
+	}
+}
+
+func TestUnlockSupportsBothPlaintextAndBcrypt(t *testing.T) {
+	s, r := testServer(t)
+	// Plaintext secret
+	notePlain := model.NotepadModel{
+		Slug:         "plain-note",
+		Title:        "Plain Note",
+		Text:         "Plain Content",
+		DocumentType: "markdown",
+		Secret:       "mysecret123",
+	}
+	if err := s.DB.Create(&notePlain).Error; err != nil {
+		t.Fatal(err)
+	}
+	w := request(r, "POST", "/plain-note/unlock", url.Values{"secret": {"mysecret123"}})
+	if w.Code != 200 {
+		t.Fatalf("plain unlock failed: %d", w.Code)
+	}
+
+	// Bcrypt secret
+	hash, err := bcrypt.GenerateFromPassword([]byte("legacySecret"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	noteBcrypt := model.NotepadModel{
+		Slug:         "bcrypt-note",
+		Title:        "Bcrypt Note",
+		Text:         "Bcrypt Content",
+		DocumentType: "markdown",
+		Secret:       string(hash),
+	}
+	if err := s.DB.Create(&noteBcrypt).Error; err != nil {
+		t.Fatal(err)
+	}
+	w = request(r, "POST", "/bcrypt-note/unlock", url.Values{"secret": {"legacySecret"}})
+	if w.Code != 200 {
+		t.Fatalf("bcrypt unlock failed: %d", w.Code)
 	}
 }

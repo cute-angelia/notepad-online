@@ -97,6 +97,19 @@ func lockFields(n model.NotepadModel) map[string]interface{} {
 func lockedReply(c *gin.Context, until int64) {
 	c.JSON(423, gin.H{"error": "秘钥累计输错 10 次，本文档今天已禁止编辑", "locked_until": until})
 }
+func verifySecret(storedSecret, inputSecret string) bool {
+	if storedSecret == "" || inputSecret == "" {
+		return false
+	}
+	if storedSecret == inputSecret {
+		return true
+	}
+	if strings.HasPrefix(storedSecret, "$2a$") || strings.HasPrefix(storedSecret, "$2b$") {
+		return bcrypt.CompareHashAndPassword([]byte(storedSecret), []byte(inputSecret)) == nil
+	}
+	return false
+}
+
 func validSecret(secret string) bool {
 	return len([]rune(strings.TrimSpace(secret))) >= 4 && len(secret) <= 72
 }
@@ -149,7 +162,7 @@ func (s *Server) Unlock(c *gin.Context) {
 		if e != nil {
 			return e
 		}
-		if !allowed && (len(secret) > 72 || bcrypt.CompareHashAndPassword([]byte(n.Secret), []byte(secret)) != nil) {
+		if !allowed && (len(secret) > 72 || !verifySecret(n.Secret, secret)) {
 			recordFailure(&n, now)
 			status = 403
 			attempts = 10 - n.FailedAttempts

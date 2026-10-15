@@ -14,7 +14,12 @@
         try { window.localStorage.setItem(secretStorageKey, value); } catch (_) { /* Saving still works when browser storage is unavailable. */ }
     }
     if (editable && !isNew) {
-        try { secret.value = window.localStorage.getItem(secretStorageKey) || ''; } catch (_) { /* Use the editable field when storage is unavailable. */ }
+        try {
+            var stored = window.localStorage.getItem(secretStorageKey);
+            if (stored) {
+                secret.value = stored;
+            }
+        } catch (_) { /* Use the editable field when storage is unavailable. */ }
     }
     var lastSaved, savedSecret = secret ? secret.value : '', inFlight = null, timer, previewOpen = false;
     var mobile = window.matchMedia('(max-width: 760px)');
