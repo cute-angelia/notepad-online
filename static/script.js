@@ -13,6 +13,14 @@
     function rememberSecret(value) {
         try { window.localStorage.setItem(secretStorageKey, value); } catch (_) { /* Saving still works when browser storage is unavailable. */ }
     }
+    var cachedSecret = '';
+    if (!editable && !isNew) {
+        cachedSecret = new URLSearchParams(window.location.search).get('pwd') || '';
+        if (cachedSecret) rememberSecret(cachedSecret);
+        else {
+            try { cachedSecret = window.localStorage.getItem(secretStorageKey) || ''; } catch (_) { /* Manual verification remains available. */ }
+        }
+    }
     if (editable && !isNew) {
         try {
             var stored = window.localStorage.getItem(secretStorageKey);
@@ -250,25 +258,44 @@
         if (blocked) {lock(lockedUntil);return;}
         if (unlockDialog.open) unlockDialog.close();
         var unlockSecret = document.getElementById('unlock-secret');
-        if (!unlockSecret.value) {
-            try { unlockSecret.value = window.localStorage.getItem(secretStorageKey) || ''; } catch (_) { /* Manual verification remains available. */ }
-        }
+        if (!unlockSecret.value) unlockSecret.value = cachedSecret;
         unlockDialog.showModal(); unlockSecret.focus();
+    }
+    function requestUnlock() {
+        if (blocked) {lock(lockedUntil);return;}
+        if (cachedSecret) return verifyUnlock(cachedSecret);
+        openUnlock();
     }
     var editLink = document.getElementById('edit-link');
     if (editLink) editLink.addEventListener('click', function (event) {
-        if (body.dataset.requestEdit === 'true') {event.preventDefault();openUnlock();}
+        if (blocked || cachedSecret || body.dataset.requestEdit === 'true' || unlockDialog.open) {event.preventDefault();return requestUnlock();}
     });
     document.getElementById('close-unlock').addEventListener('click', function () {unlockDialog.close();});
-    document.getElementById('unlock-form').addEventListener('submit', async function (event) {
-        event.preventDefault();
+    var unlocking = false;
+    async function verifyUnlock(enteredSecret) {
+        if (unlocking) return;
+        if (blocked) {lock(lockedUntil);return;}
+        unlocking = true;
         var button = document.getElementById('unlock-submit'), errorLabel = document.getElementById('unlock-error');
         button.disabled = true; errorLabel.textContent = '';
-        try {var enteredSecret = document.getElementById('unlock-secret').value; var result = await api('/' + encodeURIComponent(tag) + '/unlock', {secret: enteredSecret}); rememberSecret(enteredSecret); window.location.assign(result.edit_url);}
+        try {var result = await api('/' + encodeURIComponent(tag) + '/unlock', {secret: enteredSecret}); rememberSecret(enteredSecret); window.location.assign(result.edit_url);}
         catch (error) {
+            if (error.status === 403 && cachedSecret === enteredSecret) {
+                cachedSecret = '';
+                try {
+                    if (window.localStorage.getItem(secretStorageKey) === enteredSecret) window.localStorage.removeItem(secretStorageKey);
+                } catch (_) { /* Manual verification remains available. */ }
+            }
             if (error.status === 423) {unlockDialog.close();lock(error.details.locked_until);}
-            else {errorLabel.textContent = error.message + (error.details && typeof error.details.remaining === 'number' ? '，今天还可尝试 ' + error.details.remaining + ' 次。' : '');}
-        } finally {button.disabled = false;}
+            else {
+                openUnlock();
+                errorLabel.textContent = error.message + (error.details && typeof error.details.remaining === 'number' ? '，今天还可尝试 ' + error.details.remaining + ' 次。' : '');
+            }
+        } finally {button.disabled = false;unlocking = false;}
+    }
+    document.getElementById('unlock-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+        return verifyUnlock(document.getElementById('unlock-secret').value);
     });
 
     if (editable) {
@@ -493,5 +520,5 @@
         }
     }
     if (blocked) {if (unlockDialog.open) unlockDialog.close();lock(lockedUntil);}
-    else if (body.dataset.requestEdit === 'true') openUnlock();
+    else if (body.dataset.requestEdit === 'true') requestUnlock();
 })();
