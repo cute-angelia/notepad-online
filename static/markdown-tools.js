@@ -8,32 +8,62 @@
 
     function frontMatter(source) {
         var match = source.match(/^\uFEFF?---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/);
-        return match && /^[A-Za-z_][\w-]*[ \t]*:/m.test(match[1]) ? match[0] : '';
+        return match && /^[^\s#][^:\r\n]*:/m.test(match[1]) ? match[0] : '';
     }
 
-    function prepareMarkdown(source) {
-        var prefix = frontMatter(source);
-        if (!prefix) return source;
-        try {
-            var content = prefix.replace(/^\uFEFF?---[^\n]*\n/, '').replace(/\r?\n---[ \t]*(?:\r?\n)?$/, '');
-            var data = yaml.load(content, {schema: yaml.JSON_SCHEMA});
-            if (!data || typeof data !== 'object' || Array.isArray(data)) return source;
-            var entries = Object.entries(data);
-            if (!entries.length) return source;
-            function cell(value) {
-                var text = typeof value === 'object' && value !== null ? JSON.stringify(value, null, 2) : String(value);
-                return text.replace(/[&<>|`*_[\]\\\r\n]/g, function (char) {return '&#' + char.charCodeAt(0) + ';';});
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[char]));
+    }
+    function metadataValue(value, parents = []) {
+        if (value !== null && typeof value === 'object') {
+            if (parents.includes(value) || parents.length >= 20) {
+                throw new Error('Recursive YAML metadata');
             }
-            var rows = entries.map(function (entry) {return '| ' + cell(entry[0]) + ' | ' + cell(entry[1]) + ' |';});
-            return '| 字段 | 值 |\n| --- | --- |\n' + rows.join('\n') + '\n\n' + source.slice(prefix.length);
-        } catch (_) {
-            // Keep malformed YAML visible while editing.
+            const next = [...parents, value];
+            if (Array.isArray(value)) {
+                if (!value.length)
+                    return '[]';
+                return '<table><tbody><tr>' + value.map((item) => '<td>' + metadataValue(item, next) + '</td>').join('') + '</tr></tbody></table>';
+            }
+            const entries = Object.entries(value);
+            if (!entries.length)
+                return '{}';
+            return '<table><thead><tr>' + entries.map(([key]) => '<th>' + escapeHtml(key) + '</th>').join('') +
+                '</tr></thead><tbody><tr>' + entries.map(([, item]) => '<td>' + metadataValue(item, next) + '</td>').join('') +
+                '</tr></tbody></table>';
         }
-        var header = prefix.replace(/^\uFEFF/, '').replace(/\r?\n$/, '');
-        // YAML block values may themselves contain Markdown fences.
-        var length = (header.match(/`+/g) || []).reduce(function (size, run) {return Math.max(size, run.length + 1);}, 3);
-        var fence = '`'.repeat(length);
-        return fence + 'yaml\n' + header + '\n' + fence + '\n\n' + source.slice(prefix.length);
+        const text = escapeHtml(value);
+        if (typeof value === 'string' && /^(https?:\/\/|mailto:)\S+$/i.test(value)) {
+            return '<a href="' + text + '" target="_blank" rel="noopener noreferrer">' + text + '</a>';
+        }
+        return text;
+    }
+    /** Render metadata separately so user Markdown never needs raw HTML enabled. */
+    function renderMarkdown(source, renderBody) {
+        const match = source.match(/^\uFEFF?---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/);
+        if (!match || !/^[^\s#][^:\r\n]*:/m.test(match[1]))
+            return renderBody(source);
+        try {
+            const data = yaml.load(match[1], { schema: yaml.JSON_SCHEMA });
+            if (!data || typeof data !== 'object' || Array.isArray(data))
+                return renderBody(source);
+            const entries = Object.entries(data);
+            if (!entries.length)
+                return renderBody(source);
+            const rows = entries.map(([key, value]) => '<tr><th scope="row">' + escapeHtml(key) + '</th><td>' + metadataValue(value, [data]) + '</td></tr>');
+            const table = '<table class="yaml-front-matter"><tbody>' + rows.join('') + '</tbody></table>';
+            return table + '\n' + renderBody(source.slice(match[0].length));
+        }
+        catch {
+            // Preserve malformed YAML or recursive aliases as readable source.
+        }
+        const header = match[0].replace(/^\uFEFF/, '').replace(/\r?\n$/, '');
+        const runs = header.match(/\x60+/g) || [];
+        const length = runs.reduce((size, run) => Math.max(size, run.length + 1), 3);
+        const fence = '`'.repeat(length);
+        return renderBody(fence + 'yaml\n' + header + '\n' + fence + '\n\n' + source.slice(match[0].length));
     }
 
     // Map container text (quotes/list items) back to the original source lines.
@@ -103,5 +133,5 @@
         if (rows.length === 1) lines.push(row([]));
         return lines.join('\n') + '\n';
     }
-    return {outline: outline, table: table, prepareMarkdown: prepareMarkdown};
+    return {outline: outline, table: table, renderMarkdown: renderMarkdown};
 });

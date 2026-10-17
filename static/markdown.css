@@ -597,3 +597,40 @@ word-wrap:break-word
 white-space:pre-wrap;
 overflow-wrap:anywhere
 }
+
+/* Front matter uses row labels at the root and column labels in nested maps. */
+.markdown-body table.yaml-front-matter {
+display:table;
+width:100%;
+table-layout:fixed;
+color:inherit
+}
+.markdown-body table.yaml-front-matter > tbody > tr > th {
+width:120px;
+text-align:center;
+vertical-align:middle
+}
+.markdown-body table.yaml-front-matter > tbody > tr:nth-child(even) {
+background:#f6f8fa
+}
+.markdown-body table.yaml-front-matter th,
+.markdown-body table.yaml-front-matter td {
+padding:8px 12px;
+white-space:pre-wrap;
+overflow-wrap:anywhere;
+vertical-align:middle
+}
+.markdown-body table.yaml-front-matter th {
+background:transparent
+}
+.markdown-body table.yaml-front-matter table {
+display:table;
+width:auto;
+max-width:100%;
+margin:0;
+table-layout:auto;
+background:#fff
+}
+.markdown-body table.yaml-front-matter table th {
+text-align:center
+}

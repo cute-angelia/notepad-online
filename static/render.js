@@ -15,7 +15,7 @@
         // Strip raw HTML as well as sanitizing generated nodes below.
         var renderer = new marked.Renderer();
         renderer.html = function (html) { return html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
-        fragment.innerHTML = marked.parse(window.markdownTools.prepareMarkdown(source), { renderer: renderer, gfm: true, breaks: false });
+        fragment.innerHTML = window.markdownTools.renderMarkdown(source, function (body) {return marked.parse(body, { renderer: renderer, gfm: true, breaks: false });});
         function sanitize(parent) {
             Array.from(parent.children).forEach(function (element) {
                 if (!allowed.has(element.tagName)) { element.replaceWith(document.createTextNode(element.textContent)); return; }
@@ -24,6 +24,8 @@
                     var keep = (tag === 'A' && (name === 'href' || name === 'title')) ||
                         (tag === 'IMG' && (name === 'src' || name === 'alt' || name === 'title')) ||
                         (tag === 'OL' && name === 'start' && /^\d+$/.test(attribute.value)) ||
+                        (tag === 'TABLE' && name === 'class' && attribute.value === 'yaml-front-matter') ||
+                        (tag === 'TH' && name === 'scope' && attribute.value === 'row') ||
                         (tag === 'CODE' && name === 'class' && /^language-[\w-]+$/.test(attribute.value)) ||
                         (tag === 'INPUT' && (name === 'checked' || name === 'disabled' || (name === 'type' && attribute.value === 'checkbox')));
                     if (!keep) element.removeAttribute(name);
