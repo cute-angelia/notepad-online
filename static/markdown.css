@@ -592,3 +592,8 @@ white-space:pre-wrap;
 overflow-wrap:anywhere;
 word-wrap:break-word
 }
+
+.markdown-body td {
+white-space:pre-wrap;
+overflow-wrap:anywhere
+}

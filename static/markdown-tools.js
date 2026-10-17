@@ -1,9 +1,9 @@
 (function (root, factory) {
     'use strict';
-    var tools = factory();
+    var tools = factory(typeof module === 'object' && module.exports ? require('./js-yaml.min.js') : root.jsyaml);
     if (typeof module === 'object' && module.exports) module.exports = tools;
     else root.markdownTools = tools;
-})(typeof window === 'object' ? window : this, function () {
+})(typeof window === 'object' ? window : this, function (yaml) {
     'use strict';
 
     function frontMatter(source) {
@@ -14,6 +14,21 @@
     function prepareMarkdown(source) {
         var prefix = frontMatter(source);
         if (!prefix) return source;
+        try {
+            var content = prefix.replace(/^\uFEFF?---[^\n]*\n/, '').replace(/\r?\n---[ \t]*(?:\r?\n)?$/, '');
+            var data = yaml.load(content, {schema: yaml.JSON_SCHEMA});
+            if (!data || typeof data !== 'object' || Array.isArray(data)) return source;
+            var entries = Object.entries(data);
+            if (!entries.length) return source;
+            function cell(value) {
+                var text = typeof value === 'object' && value !== null ? JSON.stringify(value, null, 2) : String(value);
+                return text.replace(/[&<>|`*_[\]\\\r\n]/g, function (char) {return '&#' + char.charCodeAt(0) + ';';});
+            }
+            var rows = entries.map(function (entry) {return '| ' + cell(entry[0]) + ' | ' + cell(entry[1]) + ' |';});
+            return '| 字段 | 值 |\n| --- | --- |\n' + rows.join('\n') + '\n\n' + source.slice(prefix.length);
+        } catch (_) {
+            // Keep malformed YAML visible while editing.
+        }
         var header = prefix.replace(/^\uFEFF/, '').replace(/\r?\n$/, '');
         // YAML block values may themselves contain Markdown fences.
         var length = (header.match(/`+/g) || []).reduce(function (size, run) {return Math.max(size, run.length + 1);}, 3);
