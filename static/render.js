@@ -15,7 +15,7 @@
         // Strip raw HTML as well as sanitizing generated nodes below.
         var renderer = new marked.Renderer();
         renderer.html = function (html) { return html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
-        fragment.innerHTML = marked.parse(source, { renderer: renderer, gfm: true, breaks: false });
+        fragment.innerHTML = marked.parse(window.markdownTools.prepareMarkdown(source), { renderer: renderer, gfm: true, breaks: false });
         function sanitize(parent) {
             Array.from(parent.children).forEach(function (element) {
                 if (!allowed.has(element.tagName)) { element.replaceWith(document.createTextNode(element.textContent)); return; }

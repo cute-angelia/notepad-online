@@ -6,6 +6,21 @@
 })(typeof window === 'object' ? window : this, function () {
     'use strict';
 
+    function frontMatter(source) {
+        var match = source.match(/^\uFEFF?---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/);
+        return match && /^[A-Za-z_][\w-]*[ \t]*:/m.test(match[1]) ? match[0] : '';
+    }
+
+    function prepareMarkdown(source) {
+        var prefix = frontMatter(source);
+        if (!prefix) return source;
+        var header = prefix.replace(/^\uFEFF/, '').replace(/\r?\n$/, '');
+        // YAML block values may themselves contain Markdown fences.
+        var length = (header.match(/`+/g) || []).reduce(function (size, run) {return Math.max(size, run.length + 1);}, 3);
+        var fence = '`'.repeat(length);
+        return fence + 'yaml\n' + header + '\n' + fence + '\n\n' + source.slice(prefix.length);
+    }
+
     // Map container text (quotes/list items) back to the original source lines.
     function project(text, raw, offsets) {
         var map = [], cursor = 0;
@@ -32,6 +47,9 @@
         }
         offsets.push(source.length);
         var text = normalized.join('');
+        var prefix = frontMatter(text);
+        // Mask the header without changing source offsets used by the editor.
+        text = prefix.replace(/[^\n]/g, ' ') + text.slice(prefix.length);
         function walk(tokens, container, map) {
             var cursor = 0;
             tokens.forEach(function (token) {
@@ -70,5 +88,5 @@
         if (rows.length === 1) lines.push(row([]));
         return lines.join('\n') + '\n';
     }
-    return {outline: outline, table: table};
+    return {outline: outline, table: table, prepareMarkdown: prepareMarkdown};
 });

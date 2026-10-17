@@ -46,3 +46,49 @@ test('outline offsets retain the original CRLF line positions', () => {
     const result = tools.outline(source,marked);
     assert.equal(result[1].offset,source.indexOf('### Two'));
 });
+
+const prepareMarkdown = source => tools.prepareMarkdown(source);
+const render = source => marked.parse(source);
+
+const skill = '---\nname: park-hae-young-dialogue-polisher\ndescription: 克制、疏离，却藏着温柔与治愈的对白。\n---\n\n# 使用方法\n\n正文 **保持加粗**。\n';
+
+test('SKILL front matter renders as YAML rather than a heading or horizontal rule', () => {
+    const html = render(prepareMarkdown(skill));
+    assert.match(html, /<code class="language-yaml">/);
+    assert.match(html, /name: park-hae-young-dialogue-polisher/);
+    assert.match(html, /description: 克制、疏离/);
+    assert.match(html, /<h1(?: [^>]*)?>使用方法<\/h1>/);
+    assert.match(html, /<strong>保持加粗<\/strong>/);
+    assert.doesNotMatch(html, /<hr|<h2/);
+});
+
+test('BOM, CRLF, nested YAML, multiline descriptions and end-of-file delimiter are preserved', () => {
+    const source = '\uFEFF---\r\nname: test\r\ndescription: |\r\n  第一行\r\n  第二行\r\nmetadata:\r\n  tags: [dialogue, 中文]\r\n---';
+    const html = render(prepareMarkdown(source));
+    assert.match(html, /language-yaml/);
+    assert.match(html, /  第一行\n  第二行/);
+    assert.match(html, /  tags: \[dialogue, 中文\]/);
+    assert.doesNotMatch(html, /<h[12]|<hr/);
+});
+
+test('ordinary Markdown, later separators and incomplete front matter stay unchanged', () => {
+    for (const source of ['# 标题\n\n---\n\n正文', '---\n\n普通文本\n\n---\n', '---\nname: unfinished\n', '```yaml\nname: example\n```', '\n---\nname: not-at-start\n---']) {
+        assert.equal(prepareMarkdown(source), source);
+    }
+});
+
+test('YAML containing code fences and HTML cannot escape the code block', () => {
+    const html = render(prepareMarkdown('---\nname: safe\ndescription: |\n  ```\n  ~~~~\n  <script>alert(1)</script>\n  # Not a heading\n---\n\n# Body'));
+    assert.equal((html.match(/<pre>/g) || []).length, 1);
+    assert.doesNotMatch(html, /<script>|<h1>Not a heading/);
+    assert.match(html, /&lt;script&gt;/);
+    assert.match(html, /<h1(?: [^>]*)?>Body<\/h1>/);
+});
+
+test('outline excludes front matter headings and retains original body offsets', () => {
+    const source = '\uFEFF---\r\nname: test\r\ndescription: |\r\n  # Not a heading\r\n---\r\n\r\n# Body\r\n\r\n## Next';
+    const result = tools.outline(source, marked);
+    assert.deepEqual(result.map(h => h.text), ['Body', 'Next']);
+    assert.equal(result[0].offset, source.indexOf('# Body'));
+    assert.equal(result[1].offset, source.indexOf('## Next'));
+});

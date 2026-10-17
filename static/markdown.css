@@ -585,3 +585,10 @@ z-index:1;
 position:relative;
 border-color:#4078c0
 }
+/* Wrap long SKILL descriptions while retaining YAML indentation. */
+.markdown-body pre:has(> code.language-yaml),
+.markdown-body pre > code.language-yaml {
+white-space:pre-wrap;
+overflow-wrap:anywhere;
+word-wrap:break-word
+}
