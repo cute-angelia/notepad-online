@@ -602,12 +602,15 @@ overflow-wrap:anywhere
 .markdown-body table.yaml-front-matter {
 display:table;
 width:100%;
-table-layout:fixed;
+table-layout:auto;
 color:inherit
 }
 .markdown-body table.yaml-front-matter > tbody > tr > th {
-width:120px;
+width:1%;
 text-align:center;
+white-space:nowrap;
+word-break:normal;
+overflow-wrap:normal;
 vertical-align:middle
 }
 .markdown-body table.yaml-front-matter > tbody > tr:nth-child(even) {
