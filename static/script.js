@@ -490,6 +490,7 @@
         var readGutter = document.getElementById('read-code-gutter');
         var linesCount = document.getElementById('code-lines-count');
         var copyBtn = document.getElementById('code-copy-button');
+        var codeElem = document.getElementById('read-code-content');
         var lines = (text || '').split('\n');
         var count = lines.length;
         if (linesCount) {
@@ -503,6 +504,17 @@
                 nums.push(i);
             }
             readGutter.textContent = nums.join('\n');
+        }
+        if (codeElem && window.hljs && typeof window.hljs.highlightAuto === 'function' && text) {
+            try {
+                var res = window.hljs.highlightAuto(text);
+                if (res && res.value) {
+                    codeElem.innerHTML = res.value;
+                    if (codeElem.classList) codeElem.classList.add('hljs');
+                }
+            } catch (_) {
+                /* Preserve original unhighlighted content on parsing failure */
+            }
         }
         if (copyBtn) {
             copyBtn.addEventListener('click', async function () {
