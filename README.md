@@ -1,5 +1,7 @@
 # 在线记事本 (Notepad Online)
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+
 轻量、安全、多端自适应的在线记事本服务。支持 Markdown、纯文本及代码三种模式，可方便地在多设备间快速传递文本、代码片段及敏感配置信息。
 
 ---
@@ -127,3 +129,10 @@ go build -o note main.go
 
 - [Sunbalcony note](https://github.com/Sunbalcony/note)
 - [notepad.pw](https://notepad.pw)
+
+---
+
+## 📄 开源许可 (License)
+
+本项目遵循 [GNU General Public License v3.0 (GPLv3)](LICENSE) 开源许可协议。
+Copyright (C) 2021-2026 cute-angelia.
