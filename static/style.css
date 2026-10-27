@@ -698,6 +698,28 @@ input,textarea {
     border-radius:4px;
     font-size:13px;
 }
+.read-code-block {
+    position:relative;
+}
+.read-code-copy {
+    position:absolute;
+    top:8px;
+    right:8px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:32px;
+    height:32px;
+    padding:0;
+    border:1px solid var(--line);
+    border-radius:5px;
+    background:var(--paper);
+    color:var(--muted);
+}
+.read-code-copy:hover {
+    color:var(--ink);
+    border-color:#d0d0cb;
+}
 .markdown-body code {
     font-family:var(--mono);
     font-size:.83em;

@@ -419,6 +419,25 @@
         var rawElem = document.getElementById('raw-content');
         var rawText = rawElem ? rawElem.value : '';
         window.documentOutline.update(rawText, document.getElementById('read-content'), kind === 'markdown');
+        if (kind === 'markdown') {
+            document.querySelectorAll('#read-content pre > code').forEach(function (code) {
+                var pre = code.parentElement, wrapper = document.createElement('div');
+                wrapper.className = 'read-code-block';
+                pre.replaceWith(wrapper);
+                wrapper.appendChild(pre);
+                var button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'read-code-copy';
+                button.setAttribute('aria-label', '复制代码');
+                button.title = '复制代码';
+                button.innerHTML = '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="7" y="7" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M4 13V5a1.5 1.5 0 0 1 1.5-1.5H12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+                button.addEventListener('click', async function () {
+                    var ok = await copyText(code.textContent);
+                    showToast(ok ? '代码已复制' : '复制失败');
+                });
+                wrapper.appendChild(button);
+            });
+        }
         if (kind === 'code') {
             initCodeViewer(rawText);
         }
