@@ -7,7 +7,7 @@
     <title>{{.title}} · 记事本</title>
     <link rel="icon" href="/static/favicon.ico">
     <link rel="stylesheet" href="/static/markdown.css?v=20261017d">
-    <link rel="stylesheet" href="/static/style.css?v=20261015q">
+    <link rel="stylesheet" href="/static/style.css?v=20261027a">
     <link rel="stylesheet" href="/static/highlight.css?v=20261018a">
     <script defer src="/static/marked.min.js?v=20261015q"></script>
     <script defer src="/static/js-yaml.min.js?v=4.1.1"></script>
@@ -70,6 +70,7 @@
         </div>
         <button id="preview-button" class="text-button preview-toggle" type="button" aria-pressed="false">◧ <span>实时预览</span></button>
     </div>
+    <div class="editor-workspace">
     <div id="markdown-toolbar" class="markdown-toolbar" role="toolbar" aria-label="Markdown 格式工具">
         <button type="button" data-format="heading" aria-label="插入三级标题" title="三级标题">H<span>3</span></button>
         <button type="button" data-format="bold" aria-label="加粗" title="加粗"><strong>B</strong></button>
@@ -90,6 +91,7 @@
         <section id="preview-pane" class="preview-pane" aria-label="实时预览" hidden><span class="pane-label">预览</span><div id="preview-content" class="markdown-body"></div></section>
     </div>
     <footer class="document-footer"><span>让想法留在这里</span><span id="mobile-save-status" class="mobile-save-status" aria-live="polite">{{if .newNote}}尚未保存{{else}}已保存{{end}}</span><span id="word-count"></span></footer>
+    </div>
     {{else}}
     <textarea id="raw-content" hidden>{{.note.Text}}</textarea>
     <article id="read-content" class="markdown-body article-body" {{if eq .kind "code"}}hidden{{end}}>{{if eq .kind "text"}}{{.note.Text}}{{end}}</article>

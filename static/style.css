@@ -391,10 +391,23 @@ input,textarea {
     font-size:12px;
     letter-spacing:.06em;
 }
+.editor-workspace {
+    display:flex;
+    flex-direction:column;
+    flex:none;
+    height:100vh;
+    height:100dvh;
+}
+.editor-workspace > .markdown-toolbar,
+.editor-workspace > .document-footer {
+    flex-shrink:0;
+}
 .editor-layout {
     flex:1;
+    min-height:0;
     display:grid;
     grid-template-columns:minmax(0,1fr);
+    grid-template-rows:minmax(0,1fr);
     gap:40px;
 }
 .is-preview .editor-layout {
@@ -404,8 +417,8 @@ input,textarea {
     min-width:0;
     display:flex;
     flex-direction:column;
-    height:calc(100vh - 220px);
-    min-height:480px;
+    height:100%;
+    min-height:0;
 }
 .source-editor {
     flex:1;
@@ -647,8 +660,8 @@ input,textarea {
     border-left:1px solid var(--line);
     padding-left:40px;
     overflow-wrap:anywhere;
-    height:calc(100vh - 220px);
-    min-height:480px;
+    height:100%;
+    min-height:0;
     overflow-y:auto;
     overflow-x:hidden;
     scrollbar-width:thin;
@@ -994,6 +1007,9 @@ input,textarea {
     .header-actions,.heading-actions,.secret-row,.editor-controls,.markdown-toolbar,.document-footer,.unlock-dialog,.notice,.preview-pane,.edit-icon {
         display:none!important;
     }
+    .editor-workspace {
+        height:auto;
+    }
     .document {
         margin:0;
         max-width:none;
@@ -1110,4 +1126,3 @@ body.has-outline { padding-left:calc(var(--outline-width) + 48px); }
         color:#1a1a1a;
     }
 }
-
