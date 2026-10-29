@@ -15,7 +15,7 @@
     }
     var cachedSecret = '';
     if (!editable && !isNew) {
-        cachedSecret = new URLSearchParams(window.location.search).get('pwd') || '';
+        cachedSecret = new URLSearchParams(window.location.search).get('view_pwd') || new URLSearchParams(window.location.search).get('pwd') || '';
         if (cachedSecret) rememberSecret(cachedSecret);
         else {
             try { cachedSecret = window.localStorage.getItem(secretStorageKey) || ''; } catch (_) { /* Manual verification remains available. */ }
@@ -29,8 +29,34 @@
             }
         } catch (_) { /* Use the editable field when storage is unavailable. */ }
     }
-    var lastSaved, savedSecret = secret ? secret.value : '', inFlight = null, timer, previewOpen = false;
+    var viewSecret = document.getElementById('note-view-secret');
+    var viewSecretWrap = document.getElementById('view-secret-wrap');
+    var randomViewSecretBtn = document.getElementById('random-view-secret');
+    var lastSaved, savedSecret = secret ? secret.value : '', savedViewSecret = viewSecret ? viewSecret.value : '';
+    var inFlight = null, timer, previewOpen = false;
     var mobile = window.matchMedia('(max-width: 760px)');
+    var isPrivate = body.dataset.isPrivate === 'true';
+    var lockToggle = document.getElementById('lock-toggle');
+    var triggerUnlockBtn = document.getElementById('trigger-unlock-btn');
+
+    function updateLockToggleUI() {
+        if (!lockToggle) return;
+        lockToggle.dataset.locked = String(isPrivate);
+        lockToggle.dataset.private = String(isPrivate);
+        lockToggle.setAttribute('aria-label', isPrivate ? '非公开' : '公开');
+        lockToggle.title = isPrivate ? '当前非公开（查看需查看码），点击切换为公开' : '当前公开（任何人可查看），点击切换为非公开';
+        var lockedIcon = lockToggle.querySelector('.lock-icon-locked');
+        var unlockedIcon = lockToggle.querySelector('.lock-icon-unlocked');
+        if (lockedIcon) {
+            lockedIcon.hidden = !isPrivate;
+            lockedIcon.style.display = isPrivate ? 'block' : 'none';
+        }
+        if (unlockedIcon) {
+            unlockedIcon.hidden = isPrivate;
+            unlockedIcon.style.display = isPrivate ? 'none' : 'block';
+        }
+        if (viewSecretWrap) viewSecretWrap.hidden = !isPrivate;
+    }
 
     async function api(path, data) {
         var response = await fetch(path, { method: 'POST', credentials: 'same-origin', headers: {'X-Notepad-Request': '1'}, body: new URLSearchParams(data) });
@@ -45,7 +71,7 @@
     function setStatus(text, state) {
         if (!state) {
             if (text === '已保存') state = 'saved';
-            else if (text === '尚未保存') state = 'unsaved';
+            else if (text === '保存中' || text === '尚未保存') state = 'saving';
         }
         if (status) { status.textContent = text; status.dataset.state = state || ''; }
         var mobileStatus = document.getElementById('mobile-save-status');
@@ -104,15 +130,15 @@
         if (textarea) textarea.readOnly = true;
         if (title) title.disabled = true;
         if (secret) secret.disabled = true;
-        document.querySelectorAll('.type-switch button, .markdown-toolbar button, #random-secret').forEach(function (button) {button.disabled = true;});
+        document.querySelectorAll('.type-switch button, .markdown-toolbar button, #random-secret, #random-view-secret').forEach(function (button) {button.disabled = true;});
         clearTimeout(timer); setStatus('今日已锁定', 'error');
         var remaining = lockedUntil * 1000 - Date.now();
         if (remaining > 0) setTimeout(function () {
             blocked = false;
             if (editable) {
-                textarea.readOnly = false; title.disabled = false; secret.disabled = false;
-                document.querySelectorAll('.type-switch button, .markdown-toolbar button, #random-secret').forEach(function (button) {button.disabled = false;});
-                setStatus(changed() ? '尚未保存' : '已保存');
+                textarea.readOnly = false; title.disabled = false; secret.disabled = false; if (viewSecret) viewSecret.disabled = false;
+                document.querySelectorAll('.type-switch button, .markdown-toolbar button, #random-secret, #random-view-secret').forEach(function (button) {button.disabled = false;});
+                setStatus(changed() ? '保存中' : '已保存');
             }
             showNotice('锁定时间已结束，可以继续编辑。', 'info');
         }, remaining + 100);
@@ -166,11 +192,11 @@
         document.getElementById('word-count').textContent = Array.from(textarea.value).length.toLocaleString() + ' 字';
         document.title = (title.value.trim() || '未命名文档') + ' · 记事本';
     }
-    function snapshot() { return {title: title.value, text: textarea.value, document_type: kind}; }
-    function changed() {return isNew || secret.value !== savedSecret || JSON.stringify(snapshot()) !== lastSaved;}
+    function snapshot() { return {title: title.value, text: textarea.value, document_type: kind, is_private: isPrivate ? 1 : 0, view_secret: viewSecret ? viewSecret.value : ''}; }
+    function changed() {return isNew || (secret && secret.value !== savedSecret) || (viewSecret && viewSecret.value !== savedViewSecret) || JSON.stringify(snapshot()) !== lastSaved;}
     function schedule() {
         if (blocked) return;
-        setStatus('尚未保存'); clearTimeout(timer);
+        setStatus('保存中'); clearTimeout(timer);
         timer = setTimeout(function () {save().catch(function () {});}, 800);
     }
     async function save() {
@@ -184,13 +210,15 @@
             setStatus('秘钥格式有误', 'error'); throw new Error('秘钥至少 4 个字符，最多 72 字节');
         }
         var creating = isNew;
+        data.is_private = isPrivate ? '1' : '0';
+        if (viewSecret) data.view_secret = viewSecret.value;
         if (keyChanged) data.secret = capturedKey;
         if (creating) { data.slug = slug; data.tag = slug; }
         setStatus('保存中', 'saving');
         inFlight = (async function () {
             try {
                 var result = await api(creating ? '/api/notes' : '/' + encodeURIComponent(tag), data);
-                lastSaved = JSON.stringify({title: data.title, text: data.text, document_type: data.document_type});
+                lastSaved = JSON.stringify(snapshot());
                 if (creating) {
                     isNew = false;
                     body.dataset.new = 'false';
@@ -199,6 +227,7 @@
                     if (viewLink) viewLink.href = result.view_url || ('/' + encodeURIComponent(slug));
                 }
                 savedSecret = capturedKey;
+                if (viewSecret) savedViewSecret = viewSecret.value;
                 if (capturedKey) rememberSecret(capturedKey);
                 setStatus('已保存');
                 if (!blocked) notice.hidden = true;
@@ -218,11 +247,15 @@
         try {
             if (editable && !blocked) {await save(); while (changed()) await save();}
             else if (editable && changed()) throw new Error('当前有未保存的修改，分享前请先保存或解锁');
-            var url = new URL('/' + encodeURIComponent(tag), window.location.origin).href;
+            var shareUrl = new URL('/' + encodeURIComponent(tag), window.location.origin);
+            if (isPrivate && viewSecret && viewSecret.value) {
+                shareUrl.searchParams.set('view_pwd', viewSecret.value);
+            }
+            var url = shareUrl.href;
             var copied = await copyText(url);
             if (copied) {
                 shareButton.querySelector('span').textContent = '链接已复制';
-                showToast('分享链接已复制');
+                showToast(isPrivate ? '已复制免密分享链接' : '分享链接已复制');
             } else {
                 var input = document.getElementById('share-url');
                 input.value = url;
@@ -254,31 +287,75 @@
         });
     }
 
-    function openUnlock() {
+    var unlockMode = body.dataset.requestEdit === 'true' ? 'edit' : (body.dataset.privateLocked === 'true' ? 'view' : 'edit');
+
+    function openUnlock(mode) {
+        if (mode) unlockMode = mode;
         if (blocked) {lock(lockedUntil);return;}
         if (unlockDialog.open) unlockDialog.close();
         var unlockSecret = document.getElementById('unlock-secret');
         if (!unlockSecret.value) unlockSecret.value = cachedSecret;
+        var desc = unlockDialog.querySelector ? unlockDialog.querySelector('.dialog-description') : null;
+        var eyebrow = unlockDialog.querySelector ? unlockDialog.querySelector('.dialog-eyebrow') : null;
+        var submitBtn = document.getElementById('unlock-submit');
+        if (unlockMode === 'edit') {
+            if (eyebrow) eyebrow.textContent = '继续创作';
+            if (desc) desc.textContent = '需要输入秘钥才能编辑';
+            if (submitBtn) submitBtn.textContent = '进入编辑';
+        } else {
+            if (eyebrow) eyebrow.textContent = '非公开文档';
+            if (desc) desc.textContent = '此文档为非公开文档，需要输入查看码或编辑秘钥才能查看';
+            if (submitBtn) submitBtn.textContent = '进入查看';
+        }
         unlockDialog.showModal(); unlockSecret.focus();
     }
-    function requestUnlock() {
+    function requestUnlock(mode) {
+        if (mode) unlockMode = mode;
         if (blocked) {lock(lockedUntil);return;}
-        if (cachedSecret) return verifyUnlock(cachedSecret);
-        openUnlock();
+        if (cachedSecret) return verifyUnlock(cachedSecret, unlockMode);
+        openUnlock(unlockMode);
     }
     var editLink = document.getElementById('edit-link');
     if (editLink) editLink.addEventListener('click', function (event) {
-        if (blocked || cachedSecret || body.dataset.requestEdit === 'true' || unlockDialog.open) {event.preventDefault();return requestUnlock();}
+        unlockMode = 'edit';
+        if (blocked || cachedSecret || body.dataset.requestEdit === 'true' || unlockDialog.open) {event.preventDefault();return requestUnlock('edit');}
     });
-    document.getElementById('close-unlock').addEventListener('click', function () {unlockDialog.close();});
+    var closeUnlock = document.getElementById('close-unlock');
+    if (closeUnlock && closeUnlock.addEventListener) {
+        closeUnlock.addEventListener('click', function () {
+            if (body.dataset.privateLocked === 'true') return;
+            unlockDialog.close();
+        });
+    }
+    if (unlockDialog && unlockDialog.addEventListener) {
+        unlockDialog.addEventListener('cancel', function (event) {
+            if (body.dataset.privateLocked === 'true' || unlockMode === 'view') {
+                event.preventDefault();
+            }
+        });
+    }
     var unlocking = false;
-    async function verifyUnlock(enteredSecret) {
+    async function verifyUnlock(enteredSecret, mode) {
+        if (mode) unlockMode = mode;
         if (unlocking) return;
         if (blocked) {lock(lockedUntil);return;}
         unlocking = true;
         var button = document.getElementById('unlock-submit'), errorLabel = document.getElementById('unlock-error');
         button.disabled = true; errorLabel.textContent = '';
-        try {var result = await api('/' + encodeURIComponent(tag) + '/unlock', {secret: enteredSecret}); rememberSecret(enteredSecret); window.location.assign(result.edit_url);}
+        try {
+            var result = await api('/' + encodeURIComponent(tag) + '/unlock', {secret: enteredSecret});
+            rememberSecret(enteredSecret);
+            if (unlockMode === 'edit') {
+                if (result.role === 'viewer') {
+                    openUnlock('edit');
+                    errorLabel.textContent = '此为查看码，仅可浏览，无法编辑。如需编辑请输入编辑秘钥。';
+                    return;
+                }
+                window.location.assign(result.edit_url);
+            } else {
+                window.location.reload();
+            }
+        }
         catch (error) {
             if (error.status === 403 && cachedSecret === enteredSecret) {
                 cachedSecret = '';
@@ -288,18 +365,58 @@
             }
             if (error.status === 423) {unlockDialog.close();lock(error.details.locked_until);}
             else {
-                openUnlock();
+                openUnlock(unlockMode);
                 errorLabel.textContent = error.message + (error.details && typeof error.details.remaining === 'number' ? '，今天还可尝试 ' + error.details.remaining + ' 次。' : '');
             }
         } finally {button.disabled = false;unlocking = false;}
     }
     document.getElementById('unlock-form').addEventListener('submit', function (event) {
         event.preventDefault();
-        return verifyUnlock(document.getElementById('unlock-secret').value);
+        return verifyUnlock(document.getElementById('unlock-secret').value, unlockMode);
     });
 
     if (editable) {
         lastSaved = isNew ? null : JSON.stringify(snapshot());
+        if (lockToggle) {
+            lockToggle.addEventListener('click', async function () {
+                if (blocked) return;
+                isPrivate = !isPrivate;
+                if (isPrivate && viewSecret && !viewSecret.value) {
+                    try {
+                        var res = await fetch('/api/secret', {credentials: 'same-origin', cache: 'no-store'});
+                        if (res.ok) {
+                            viewSecret.value = (await res.json()).secret;
+                        }
+                    } catch (_) {}
+                }
+                updateLockToggleUI();
+                showToast(isPrivate ? '已设为非公开文档' : '已设为公开文档');
+                schedule();
+            });
+        }
+        if (viewSecret) {
+            viewSecret.addEventListener('click', async function () {
+                if (!viewSecret.value) return;
+                await copyText(viewSecret.value, viewSecret);
+                showToast('查看码已复制');
+            });
+            viewSecret.addEventListener('input', function () {
+                schedule();
+            });
+        }
+        if (randomViewSecretBtn) {
+            randomViewSecretBtn.addEventListener('click', async function () {
+                var button = this; button.disabled = true;
+                button.classList.add('is-spinning');
+                setTimeout(function () { button.classList.remove('is-spinning'); }, 450);
+                try {
+                    var response = await fetch('/api/secret', {credentials: 'same-origin', cache: 'no-store'});
+                    if (!response.ok) throw new Error('生成查看码失败');
+                    viewSecret.value = (await response.json()).secret;
+                    schedule();
+                } catch (error) {showNotice(error.message);} finally {button.disabled = blocked;}
+            });
+        }
         textarea.addEventListener('input', function () {updateDocument();schedule();});
         title.addEventListener('input', function () {updateDocument();schedule();});
         secret.addEventListener('input', function () {secret.title = '点击复制，直接输入可修改'; schedule();});
@@ -335,15 +452,20 @@
             await copyText(secret.value, secret);
             showToast('秘钥已复制');
         });
-        document.getElementById('random-secret').addEventListener('click', async function () {
-            var button = this; button.disabled = true;
-            try {
-                var response = await fetch('/api/secret', {credentials: 'same-origin', cache: 'no-store'});
-                if (!response.ok) throw new Error('生成秘钥失败');
-                secret.value = (await response.json()).secret;
-                schedule();
-            } catch (error) {showNotice(error.message);} finally {button.disabled = blocked;}
-        });
+        var randomSecretBtn = document.getElementById('random-secret');
+        if (randomSecretBtn) {
+            randomSecretBtn.addEventListener('click', async function () {
+                var button = this; button.disabled = true;
+                button.classList.add('is-spinning');
+                setTimeout(function () { button.classList.remove('is-spinning'); }, 450);
+                try {
+                    var response = await fetch('/api/secret', {credentials: 'same-origin', cache: 'no-store'});
+                    if (!response.ok) throw new Error('生成秘钥失败');
+                    secret.value = (await response.json()).secret;
+                    schedule();
+                } catch (error) {showNotice(error.message);} finally {button.disabled = blocked;}
+            });
+        }
         document.querySelectorAll('[data-format]').forEach(function (button) {
             button.addEventListener('mousedown', function (event) {event.preventDefault();});
             button.addEventListener('click', function () {
@@ -414,11 +536,13 @@
         window.addEventListener('beforeunload', function (event) {if (changed() && (!isNew || title.value || textarea.value)) {event.preventDefault();event.returnValue = '';}});
         document.addEventListener('keydown', function (event) {if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {event.preventDefault();save().catch(function () {});}});
         updateDocument();
-    } else {
+    } else if (body.dataset.privateLocked !== 'true') {
         doc.dataset.kind = kind;
         var rawElem = document.getElementById('raw-content');
         var rawText = rawElem ? rawElem.value : '';
-        window.documentOutline.update(rawText, document.getElementById('read-content'), kind === 'markdown');
+        if (window.documentOutline && window.documentOutline.update) {
+            window.documentOutline.update(rawText, document.getElementById('read-content'), kind === 'markdown');
+        }
         if (kind === 'markdown') {
             document.querySelectorAll('#read-content pre > code').forEach(function (code) {
                 var pre = code.parentElement, wrapper = document.createElement('div');
@@ -550,6 +674,12 @@
             });
         }
     }
+    if (triggerUnlockBtn) {
+        triggerUnlockBtn.addEventListener('click', function () {
+            openUnlock('view');
+        });
+    }
     if (blocked) {if (unlockDialog.open) unlockDialog.close();lock(lockedUntil);}
-    else if (body.dataset.requestEdit === 'true') requestUnlock();
+    else if (body.dataset.requestEdit === 'true') requestUnlock('edit');
+    else if (body.dataset.privateLocked === 'true') requestUnlock('view');
 })();

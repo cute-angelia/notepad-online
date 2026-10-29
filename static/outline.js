@@ -59,6 +59,7 @@
 
     window.documentOutline = {
         update: function (source, target, markdown) {
+            if (!sidebar) return;
             sidebar.hidden = !markdown;
             document.body.classList.toggle('has-outline', markdown);
             if (!markdown) {if (observer) observer.disconnect(); return;}

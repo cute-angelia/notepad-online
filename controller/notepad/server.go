@@ -106,24 +106,68 @@ func noteTitle(n model.NotepadModel) string {
 	}
 	return n.Title
 }
-func (s *Server) render(c *gin.Context, n model.NotepadModel, editable, newNote bool, initialSecret, forcedType string) {
+func (s *Server) render(c *gin.Context, n model.NotepadModel, editable, newNote bool, initialSecret, initialViewSecret, forcedType string, isPrivateLocked bool) {
 	noCache(c)
 	kind := n.DocumentType
 	if forcedType != "" {
 		kind = forcedType
 	}
+	title := noteTitle(n)
+	if isPrivateLocked {
+		title = "非公开文档"
+	}
 	c.HTML(http.StatusOK, "index.html", gin.H{
-		"title": noteTitle(n), "note": n, "editable": editable,
-		"newNote": newNote, "initialSecret": initialSecret, "kind": kind,
+		"title": title, "note": n, "editable": editable,
+		"newNote": newNote, "initialSecret": initialSecret, "initialViewSecret": initialViewSecret, "kind": kind,
 		"locked": n.Locked > s.Now().Unix(), "lockedUntil": n.Locked,
+		"isPrivate": n.IsPrivate == 1, "isPrivateLocked": isPrivateLocked,
 		"editURL":     notePath(n.Slug) + "/edit",
 		"viewURL":     notePath(n.Slug),
 		"requestEdit": strings.HasSuffix(c.Request.URL.Path, "/edit") && !editable,
 	})
 }
+func (s *Server) viewInternal(c *gin.Context, n model.NotepadModel, forcedType string) {
+	allowed, err := s.authorized(s.DB, c, n)
+	if err != nil {
+		serverError(c)
+		return
+	}
+	isViewerAllowed, err := s.authorizedViewer(s.DB, c, n)
+	if err != nil {
+		serverError(c)
+		return
+	}
+
+	viewPwd := c.Query("view_pwd")
+	pwd := c.Query("pwd")
+	if !isViewerAllowed && viewPwd != "" && n.ViewSecret != "" && verifySecret(n.ViewSecret, viewPwd) {
+		token, err := s.browser(c, true)
+		if err == nil {
+			_ = s.grant(s.DB, n, token, n.ViewSecret)
+			isViewerAllowed = true
+		}
+	}
+	if !allowed && pwd != "" && verifySecret(n.Secret, pwd) {
+		token, err := s.browser(c, true)
+		if err == nil {
+			_ = s.grant(s.DB, n, token, n.Secret)
+			allowed = true
+			isViewerAllowed = true
+		}
+	}
+
+	if n.IsPrivate == 1 && !isViewerAllowed {
+		masked := n
+		masked.Title = "非公开文档"
+		masked.Text = ""
+		s.render(c, masked, false, false, "", "", forcedType, true)
+		return
+	}
+	s.render(c, n, false, false, "", "", forcedType, false)
+}
 func (s *Server) View(c *gin.Context) {
 	if n, ok := s.find(c); ok {
-		s.render(c, n, false, false, "", "")
+		s.viewInternal(c, n, "")
 	}
 }
 func (s *Server) Edit(c *gin.Context) {
@@ -134,9 +178,11 @@ func (s *Server) Edit(c *gin.Context) {
 			return
 		}
 		initialSecret := ""
+		initialViewSecret := ""
 		if allowed {
 			initialSecret = n.Secret
+			initialViewSecret = n.ViewSecret
 		}
-		s.render(c, n, allowed, false, initialSecret, "")
+		s.render(c, n, allowed, false, initialSecret, initialViewSecret, "", false)
 	}
 }

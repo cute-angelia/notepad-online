@@ -49,7 +49,12 @@ func (s *Server) Index(c *gin.Context) {
 		serverError(c)
 		return
 	}
-	s.render(c, model.NotepadModel{Slug: slug, DocumentType: "markdown"}, true, true, word, "")
+	viewWord, err := randomWord()
+	if err != nil {
+		serverError(c)
+		return
+	}
+	s.render(c, model.NotepadModel{Slug: slug, DocumentType: "markdown", IsPrivate: 0, ViewSecret: viewWord}, true, true, word, viewWord, "", false)
 }
 func (s *Server) Create(c *gin.Context) {
 	if err := c.Request.ParseForm(); err != nil {
@@ -57,10 +62,15 @@ func (s *Server) Create(c *gin.Context) {
 		return
 	}
 	slug, secret := c.PostForm("slug"), c.PostForm("secret")
+	viewSecret := c.PostForm("view_secret")
 	if slug == "" {
 		slug = c.PostForm("tag")
 	}
-	n := model.NotepadModel{Slug: slug, Title: c.PostForm("title"), Text: c.PostForm("text"), DocumentType: c.PostForm("document_type")}
+	isPrivate := 0
+	if c.PostForm("is_private") == "1" {
+		isPrivate = 1
+	}
+	n := model.NotepadModel{Slug: slug, Title: c.PostForm("title"), Text: c.PostForm("text"), DocumentType: c.PostForm("document_type"), IsPrivate: isPrivate, ViewSecret: viewSecret}
 	if !validSlug(slug) || !validSecret(secret) {
 		c.JSON(400, gin.H{"error": "秘钥至少 4 个字符，最多 72 字节；文档地址必须有效"})
 		return
@@ -82,7 +92,7 @@ func (s *Server) Create(c *gin.Context) {
 		if e := tx.Create(&n).Error; e != nil {
 			return e
 		}
-		return s.grant(tx, n, token)
+		return s.grant(tx, n, token, n.Secret)
 	})
 	if err != nil {
 		var count int64

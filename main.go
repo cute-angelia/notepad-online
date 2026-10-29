@@ -54,12 +54,18 @@ func main() {
 	r := gin.Default()
 	// gin.SetMode(gin.ReleaseMode)
 
+	// 设置模板（需在注册路由前调用）
+	templ := template.Must(template.New("").ParseFS(staticFS, "templates/*.html"))
+	r.SetHTMLTemplate(templ)
+
 	// 全局安全中间件：安全响应头、最大请求体限制 (5MB)
 	r.Use(middleware.SecurityHeaders())
 	r.Use(middleware.MaxBodySize(5 << 20))
 
 	// 动态路由限流：每个 IP 每分钟最多 120 次请求（兼顾正常编辑与防暴力枚举）
 	limiter := middleware.NewIPRateLimiter(120, time.Minute)
+	// 防乱扫路径：1分钟内累计 10 次 404 则封禁 IP 10 分钟
+	scanBanLimiter := middleware.NewIPScanBanLimiter(10, time.Minute, 10*time.Minute)
 
 	// 静态及基础设施路由
 	r.GET("/robots.txt", notepad.RobotsHandle)
@@ -69,14 +75,11 @@ func main() {
 
 	// 记事本业务路由
 	noteGroup := r.Group("/")
+	noteGroup.Use(scanBanLimiter.Middleware())
 	noteGroup.Use(limiter.Middleware())
 	{
 		notepad.NewServer(orm).RegisterRoutes(noteGroup)
 	}
-
-	// 设置模板
-	templ := template.Must(template.New("").ParseFS(staticFS, "templates/*.html"))
-	r.SetHTMLTemplate(templ)
 
 	// 静态文件
 	r.GET("/static/*filepath", func(c *gin.Context) {

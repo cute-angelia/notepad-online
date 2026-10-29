@@ -67,8 +67,23 @@ func (s *Server) authorized(tx *gorm.DB, c *gin.Context, n model.NotepadModel) (
 	err = tx.Model(&model.BrowserGrant{}).Where("note_id = ? AND browser_hash = ? AND secret_hash = ? AND expires_at > ?", n.Id, hashToken(token), n.Secret, s.Now().Unix()).Count(&count).Error
 	return count > 0, err
 }
-func (s *Server) grant(tx *gorm.DB, n model.NotepadModel, token string) error {
-	g := model.BrowserGrant{NoteID: n.Id, BrowserHash: hashToken(token), SecretHash: n.Secret, ExpiresAt: s.Now().Add(grantAge).Unix()}
+func (s *Server) authorizedViewer(tx *gorm.DB, c *gin.Context, n model.NotepadModel) (bool, error) {
+	token, err := s.browser(c, false)
+	if err != nil || token == "" {
+		return false, err
+	}
+	var count int64
+	query := tx.Model(&model.BrowserGrant{}).Where("note_id = ? AND browser_hash = ? AND expires_at > ?", n.Id, hashToken(token), s.Now().Unix())
+	if n.ViewSecret != "" {
+		query = query.Where("secret_hash = ? OR secret_hash = ?", n.Secret, n.ViewSecret)
+	} else {
+		query = query.Where("secret_hash = ?", n.Secret)
+	}
+	err = query.Count(&count).Error
+	return count > 0, err
+}
+func (s *Server) grant(tx *gorm.DB, n model.NotepadModel, token, secretHash string) error {
+	g := model.BrowserGrant{NoteID: n.Id, BrowserHash: hashToken(token), SecretHash: secretHash, ExpiresAt: s.Now().Add(grantAge).Unix()}
 	return tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "note_id"}, {Name: "browser_hash"}}, DoUpdates: clause.AssignmentColumns([]string{"secret_hash", "expires_at"})}).Create(&g).Error
 }
 
@@ -134,6 +149,7 @@ func (s *Server) Unlock(c *gin.Context) {
 	status := 200
 	var until int64
 	attempts := 0
+	role := "editor"
 	err = s.DB.Transaction(func(tx *gorm.DB) error {
 		var n model.NotepadModel
 		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("slug = ?", slug).First(&n).Error; e != nil {
@@ -155,7 +171,10 @@ func (s *Server) Unlock(c *gin.Context) {
 		if e != nil {
 			return e
 		}
-		if !allowed && (len(secret) > 72 || !verifySecret(n.Secret, secret)) {
+		isEditor := verifySecret(n.Secret, secret)
+		isViewer := n.IsPrivate == 1 && n.ViewSecret != "" && verifySecret(n.ViewSecret, secret)
+
+		if !allowed && !isEditor && !isViewer {
 			recordFailure(&n, now)
 			status = 403
 			attempts = 10 - n.FailedAttempts
@@ -168,7 +187,12 @@ func (s *Server) Unlock(c *gin.Context) {
 		if e = tx.Model(&n).Updates(lockFields(n)).Error; e != nil {
 			return e
 		}
-		return s.grant(tx, n, token)
+		grantHash := n.Secret
+		if !allowed && !isEditor && isViewer {
+			grantHash = n.ViewSecret
+			role = "viewer"
+		}
+		return s.grant(tx, n, token, grantHash)
 	})
 	if err != nil {
 		serverError(c)
@@ -187,5 +211,5 @@ func (s *Server) Unlock(c *gin.Context) {
 		c.Status(404)
 		return
 	}
-	c.JSON(200, gin.H{"edit_url": notePath(slug) + "/edit"})
+	c.JSON(200, gin.H{"role": role, "edit_url": notePath(slug) + "/edit", "view_url": notePath(slug)})
 }

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -106,5 +107,101 @@ func (rl *IPRateLimiter) Middleware() gin.HandlerFunc {
 		record.count++
 		rl.mu.Unlock()
 		c.Next()
+	}
+}
+
+type banRecord struct {
+	notFoundCount int
+	windowReset   time.Time
+	bannedUntil   time.Time
+}
+
+// IPScanBanLimiter bans IPs that hit 404 too frequently within a window.
+type IPScanBanLimiter struct {
+	mu          sync.Mutex
+	records     map[string]*banRecord
+	maxNotFound int
+	window      time.Duration
+	banDuration time.Duration
+	stopChan    chan struct{}
+}
+
+// NewIPScanBanLimiter creates a limiter that bans an IP for banDuration if it encounters maxNotFound 404s within window.
+func NewIPScanBanLimiter(maxNotFound int, window, banDuration time.Duration) *IPScanBanLimiter {
+	limiter := &IPScanBanLimiter{
+		records:     make(map[string]*banRecord),
+		maxNotFound: maxNotFound,
+		window:      window,
+		banDuration: banDuration,
+		stopChan:    make(chan struct{}),
+	}
+
+	go func() {
+		ticker := time.NewTicker(window * 2)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				limiter.mu.Lock()
+				now := time.Now()
+				for ip, record := range limiter.records {
+					if now.After(record.windowReset) && now.After(record.bannedUntil) {
+						delete(limiter.records, ip)
+					}
+				}
+				limiter.mu.Unlock()
+			case <-limiter.stopChan:
+				return
+			}
+		}
+	}()
+
+	return limiter
+}
+
+// Middleware returns a Gin middleware for 404-scan detection and banning.
+func (b *IPScanBanLimiter) Middleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ip := c.ClientIP()
+		now := time.Now()
+
+		b.mu.Lock()
+		record, exists := b.records[ip]
+		if exists && now.Before(record.bannedUntil) {
+			b.mu.Unlock()
+			retryAfter := int(record.bannedUntil.Sub(now).Seconds())
+			if retryAfter < 1 {
+				retryAfter = 1
+			}
+			c.Header("Retry-After", fmt.Sprintf("%d", retryAfter))
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "由于频繁访问不存在的页面，您的 IP 已被临时封禁，请稍后再试。",
+			})
+			return
+		}
+		b.mu.Unlock()
+
+		c.Next()
+
+		if c.Writer.Status() == http.StatusNotFound {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+
+			now = time.Now()
+			rec, ok := b.records[ip]
+			if !ok || now.After(rec.windowReset) {
+				rec = &banRecord{
+					notFoundCount: 1,
+					windowReset:   now.Add(b.window),
+				}
+				b.records[ip] = rec
+			} else {
+				rec.notFoundCount++
+			}
+
+			if rec.notFoundCount >= b.maxNotFound {
+				rec.bannedUntil = now.Add(b.banDuration)
+			}
+		}
 	}
 }

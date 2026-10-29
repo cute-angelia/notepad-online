@@ -13,6 +13,8 @@ type NotepadModel struct {
 	Text           string `json:"text" gorm:"column:text"`
 	DocumentType   string `json:"document_type" gorm:"size:16;not null;default:text"`
 	Secret         string `json:"-" gorm:"size:100;not null;default:''"`
+	ViewSecret     string `json:"view_secret" gorm:"column:view_secret;size:100;not null;default:''"`
+	IsPrivate      int    `json:"is_private" gorm:"column:is_private;not null;default:0"`
 	Locked         int64  `json:"locked" gorm:"not null;default:0"`
 	FailedAttempts int    `json:"-" gorm:"not null;default:0"`
 	FailureDay     string `json:"-" gorm:"size:10;not null;default:''"`

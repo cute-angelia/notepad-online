@@ -79,6 +79,16 @@ func (s *Server) Save(c *gin.Context) {
 		if _, ok := c.Request.PostForm["document_type"]; ok {
 			n.DocumentType = c.PostForm("document_type")
 		}
+		if val, ok := c.Request.PostForm["is_private"]; ok {
+			if len(val) > 0 && val[0] == "1" {
+				n.IsPrivate = 1
+			} else {
+				n.IsPrivate = 0
+			}
+		}
+		if val, ok := c.Request.PostForm["view_secret"]; ok {
+			n.ViewSecret = val[0]
+		}
 		if message = validateNote(n); message != "" {
 			status = 400
 			return nil
@@ -91,6 +101,8 @@ func (s *Server) Save(c *gin.Context) {
 		updates["text"] = n.Text
 		updates["title"] = n.Title
 		updates["document_type"] = n.DocumentType
+		updates["is_private"] = n.IsPrivate
+		updates["view_secret"] = n.ViewSecret
 		updates["secret"] = n.Secret
 		updates["update_time"] = s.Now().Format("2006-01-02 15:04:05")
 		if e = tx.Model(&n).Updates(updates).Error; e != nil {
@@ -104,7 +116,7 @@ func (s *Server) Save(c *gin.Context) {
 			if e = tx.Where("note_id = ?", n.Id).Delete(&model.BrowserGrant{}).Error; e != nil {
 				return e
 			}
-			return s.grant(tx, n, token)
+			return s.grant(tx, n, token, n.Secret)
 		}
 		return nil
 	})

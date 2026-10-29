@@ -7,17 +7,18 @@
     <title>{{.title}} · 记事本</title>
     <link rel="icon" href="/static/favicon.ico">
     <link rel="stylesheet" href="/static/markdown.css?v=20261017d">
-    <link rel="stylesheet" href="/static/style.css?v=20261027b">
+    <link rel="stylesheet" href="/static/style.css?v=20261029g">
     <link rel="stylesheet" href="/static/highlight.css?v=20261018a">
     <script defer src="/static/marked.min.js?v=20261015q"></script>
     <script defer src="/static/js-yaml.min.js?v=4.1.1"></script>
     <script defer src="/static/markdown-tools.js?v=20261017c"></script>
     <script defer src="/static/render.js?v=20261017c"></script>
-    <script defer src="/static/outline.js?v=20261015q"></script>
+    <script defer src="/static/outline.js?v=20261029a"></script>
     <script defer src="/static/highlight.min.js?v=20261018a"></script>
-    <script defer src="/static/script.js?v=20261027a"></script>
+    <script defer src="/static/script.js?v=20261029i"></script>
 </head>
-<body data-slug="{{.note.Slug}}" data-tag="{{.note.Slug}}" data-editable="{{.editable}}" data-new="{{.newNote}}" data-kind="{{.kind}}" data-locked-until="{{.lockedUntil}}" data-request-edit="{{.requestEdit}}">
+<body data-slug="{{.note.Slug}}" data-tag="{{.note.Slug}}" data-editable="{{.editable}}" data-new="{{.newNote}}" data-kind="{{.kind}}" data-locked-until="{{.lockedUntil}}" data-request-edit="{{.requestEdit}}" data-is-private="{{if .isPrivate}}true{{else}}false{{end}}" data-private-locked="{{if .isPrivateLocked}}true{{else}}false{{end}}">
+{{if not .isPrivateLocked}}
 <aside id="document-outline" class="document-outline" hidden>
     <nav aria-label="文档目录">
         <h2 class="outline-caption">目录</h2>
@@ -25,17 +26,50 @@
         <p id="outline-empty">暂无标题</p>
     </nav>
 </aside>
+{{end}}
 {{if .editable}}
 <header class="site-header">
     <textarea id="note-title" class="title-input" aria-label="标题" placeholder="标题" maxlength="200" autocomplete="off" rows="1" {{if .locked}}disabled{{end}}>{{.note.Title}}</textarea>
     <div class="header-actions">
         <div class="secret-row">
+            <button class="lock-toggle-btn" id="lock-toggle" type="button" title="{{if .isPrivate}}当前非公开（查看需查看码），点击切换为公开{{else}}当前公开（任何人可查看），点击切换为非公开{{end}}" aria-label="{{if .isPrivate}}非公开{{else}}公开{{end}}" data-locked="{{if .isPrivate}}true{{else}}false{{end}}" data-private="{{if .isPrivate}}true{{else}}false{{end}}" {{if .locked}}disabled{{end}}>
+                <svg class="lock-icon lock-icon-locked" viewBox="0 0 24 24" fill="none" aria-hidden="true" {{if not .isPrivate}}hidden{{end}}>
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M22 9.45v-.91c0-2.83 0-4.25-.87-5.12c-.88-.88-2.3-.88-5.12-.88H7.97c-2.83 0-4.25 0-5.13.88c-.87.87-.87 2.29-.87 5.12v3.61c0 2.83 0 4.25.87 5.12c.88.88 2.3.88 5.13.88h3.28M22 7.26H1.98"/>
+                    <rect width="7.2" height="5.37" x="14.8" y="14.97" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" rx="1"/>
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m20.43 14.97l-.18-1.51a1.84 1.84 0 0 0-3.64-.02l-.2 1.53"/>
+                </svg>
+                <svg class="lock-icon lock-icon-unlocked" viewBox="0 0 24 24" fill="none" aria-hidden="true" {{if .isPrivate}}hidden{{end}}>
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M22 9.31v-.77c0-2.83 0-4.25-.87-5.12c-.88-.88-2.3-.88-5.12-.88H7.97c-2.83 0-4.25 0-5.13.88c-.87.87-.87 2.29-.87 5.12v3.91c0 2.54 0 3.81.71 4.65l.34.33c.84.72 2.1.72 4.65.72M22 7.26H1.98"/>
+                    <circle cx="16.55" cy="16.53" r="5.73" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" transform="rotate(90 16.55 16.53)"/>
+                    <ellipse cx="16.55" cy="16.53" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" rx="5.73" ry="1.9" transform="rotate(90 16.55 16.53)"/>
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.82 16.53h11.45"/>
+                </svg>
+            </button>
             <label for="note-secret">秘钥</label>
-            <input id="note-secret" type="text" title="点击复制，直接输入可修改" aria-label="文档秘钥" autocomplete="new-password" placeholder="输入新秘钥，自动保存" value="{{.initialSecret}}" {{if .locked}}disabled{{end}}>
-            <span class="small-divider" aria-hidden="true"></span>
-            <button class="text-button" id="random-secret" type="button" {{if .locked}}disabled{{end}}>随机</button>
+            <div class="input-with-icon">
+                <input id="note-secret" type="text" title="点击复制，直接输入可修改" aria-label="文档编辑秘钥" autocomplete="new-password" placeholder="编辑秘钥" value="{{.initialSecret}}" {{if .locked}}disabled{{end}}>
+                <button class="input-action-btn" id="random-secret" type="button" title="随机生成秘钥" aria-label="随机秘钥" {{if .locked}}disabled{{end}}>
+                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6L16.5 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M16.5 3v4h-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div id="view-secret-wrap" class="view-secret-wrap" {{if not .isPrivate}}hidden{{end}}>
+                <span class="small-divider" aria-hidden="true"></span>
+                <label for="note-view-secret">查看码</label>
+                <div class="input-with-icon">
+                    <input id="note-view-secret" type="text" title="点击复制，直接输入可修改" aria-label="只读查看码" autocomplete="new-password" placeholder="只读查看码" value="{{.initialViewSecret}}" {{if .locked}}disabled{{end}}>
+                    <button class="input-action-btn" id="random-view-secret" type="button" title="随机生成查看码" aria-label="随机查看码" {{if .locked}}disabled{{end}}>
+                        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6L16.5 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M16.5 3v4h-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
         </div>
-        <span id="save-status" class="save-status" role="status" aria-live="polite" {{if and .editable (not .newNote)}}data-state="saved"{{end}}>{{if .editable}}{{if .newNote}}尚未保存{{else}}已保存{{end}}{{else}}只读分享{{end}}</span>
+        <span id="save-status" class="save-status" role="status" aria-live="polite" {{if and .editable (not .newNote)}}data-state="saved"{{end}}>{{if .editable}}{{if .newNote}}保存中{{else}}已保存{{end}}{{else}}只读分享{{end}}</span>
         <a class="quiet-link" id="view-link" href="{{.viewURL}}" target="_blank" rel="noopener">打开链接</a>
         <button class="button button-outline" id="share-button" type="button"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 6H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-2M10 3h7v7M8 12l9-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>复制链接</span></button>
 
@@ -43,7 +77,7 @@
 </header>
 {{end}}
 <main class="document {{if not .editable}}reader{{end}}" id="document">
-    {{if not .editable}}
+    {{if and (not .editable) (not .isPrivateLocked)}}
     <section class="document-heading">
         <h1 class="article-title">{{.title}}<a class="edit-icon" id="edit-link" href="{{.editURL}}" aria-label="编辑文档" title="编辑文档"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L21 7a2.1 2.1 0 0 0-4-4L5 15l-1 5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></a></h1>
         <div class="heading-actions">
@@ -90,9 +124,10 @@
         </div>
         <section id="preview-pane" class="preview-pane" aria-label="实时预览" hidden><span class="pane-label">预览</span><div id="preview-content" class="markdown-body"></div></section>
     </div>
-    <footer class="document-footer"><span>让想法留在这里</span><span id="mobile-save-status" class="mobile-save-status" aria-live="polite">{{if .newNote}}尚未保存{{else}}已保存{{end}}</span><span id="word-count"></span></footer>
+    <footer class="document-footer"><span>让想法留在这里</span><span id="mobile-save-status" class="mobile-save-status" aria-live="polite">{{if .newNote}}保存中{{else}}已保存{{end}}</span><span id="word-count"></span></footer>
     </div>
     {{else}}
+    {{if not .isPrivateLocked}}
     <textarea id="raw-content" hidden>{{.note.Text}}</textarea>
     <article id="read-content" class="markdown-body article-body" {{if eq .kind "code"}}hidden{{end}}>{{if eq .kind "text"}}{{.note.Text}}{{end}}</article>
     {{if eq .kind "code"}}
@@ -115,16 +150,19 @@
     {{end}}
     <footer class="document-footer"><span>记下，分享。</span><a href="/" target="_blank" rel="noopener">写一篇自己的</a></footer>
     {{end}}
+    {{end}}
 </main>
-<dialog id="unlock-dialog" class="unlock-dialog" {{if .requestEdit}}open{{end}}>
+<dialog id="unlock-dialog" class="unlock-dialog" {{if or .requestEdit .isPrivateLocked}}open{{end}}>
     <form id="unlock-form">
+        {{if not .isPrivateLocked}}
         <button class="dialog-close" type="button" id="close-unlock" aria-label="关闭">×</button>
-        <p class="dialog-eyebrow">继续创作</p>
-        <h2>输入文档秘钥</h2>
-        <p class="dialog-description">需要输入秘钥才能编辑</p>
-        <label class="sr-only" for="unlock-secret">秘钥</label><input id="unlock-secret" type="text" autocomplete="current-password" placeholder="秘钥" required maxlength="72">
+        {{end}}
+        <p class="dialog-eyebrow">{{if .isPrivateLocked}}非公开文档{{else}}继续创作{{end}}</p>
+        <h2>{{if .isPrivateLocked}}输入查看码或秘钥{{else}}输入文档秘钥{{end}}</h2>
+        <p class="dialog-description">{{if .isPrivateLocked}}此文档为非公开文档，需要输入查看码或编辑秘钥才能查看{{else}}需要输入秘钥才能编辑{{end}}</p>
+        <label class="sr-only" for="unlock-secret">{{if .isPrivateLocked}}查看码或秘钥{{else}}秘钥{{end}}</label><input id="unlock-secret" type="text" autocomplete="current-password" placeholder="{{if .isPrivateLocked}}查看码或编辑秘钥{{else}}编辑秘钥{{end}}" required maxlength="72">
         <p class="unlock-error" id="unlock-error" role="alert"></p>
-        <button class="button button-solid" id="unlock-submit" type="submit">进入编辑</button>
+        <button class="button button-solid" id="unlock-submit" type="submit">{{if .isPrivateLocked}}进入查看{{else}}进入编辑{{end}}</button>
     </form>
 </dialog>
 <dialog id="share-dialog" class="unlock-dialog">
