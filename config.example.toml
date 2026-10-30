@@ -8,10 +8,10 @@ mysqDsn = "root:LuXXX@tcp(hXXX:3306)/XXX?charset=utf8mb4&parseTime=true&loc=Loca
 # yourself; the application never creates buckets or changes their policies.
 [minio]
 enabled = false
-endPoint = "127.0.0.1:9000"
+endPoint = "127.0.0.1:9000" # Host[:port] only, without http:// or https://.
 accessKeyId = "YOUR_ACCESS_KEY"
 secretAccessKey = "YOUR_SECRET_KEY"
-useSsl = false
+useSsl = false # HTTPS to MinIO only; independent of the application's HTTP listener.
 timeout = 120 # Seconds per storage operation; duration strings such as "2m" also work.
 bucket = "notepad-media"
 prefix = "notes" # Object key: notes/YYYY-MM/random.ext (Asia/Shanghai).

@@ -87,6 +87,8 @@ Markdown 编辑器支持工具栏选择文件、拖拽文件及粘贴图片。�
 
 在 `config.toml` 中添加 `[minio]`，连接字段沿用参考项目的 `minio.nas` 命名：
 
+`endPoint` 只填写主机名及端口，不带 `http://` 或 `https://`；通过 `useSsl` 决定是否使用 HTTPS 连接 MinIO，与记事本服务仅监听 HTTP 无关。
+
 ```toml
 [minio]
 enabled = true
