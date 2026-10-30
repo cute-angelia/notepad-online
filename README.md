@@ -21,9 +21,9 @@
   - **防暴力破解**：单个文档北京时间单日累计输错秘钥 10 次将自动触发当日锁定，次日零点自动恢复。
   - **Cookie 凭据授权**：验证成功后通过 HttpOnly、SameSite 安全 Cookie 维持一年免密编辑。
   - **安全防护**：内置严格安全响应头（X-Frame-Options、HSTS、CSP 等）、请求体大小限制及 IP 级频率限制。
-- **协议自适应 (HTTP / HTTPS)**：
-  - 基于 `cmux` 实现单端口同时支持 HTTP 与 HTTPS 访问。
-  - 自动探测证书文件，本地无证书时自动降级为普通 HTTP，服务器挂载证书时自适应双协议。
+- **HTTP 服务**：
+  - 内置服务仅监听 HTTP，默认端口为 `37101`。
+  - 如需 HTTPS，可通过 Nginx 等反向代理配置，不再由应用加载 SSL 证书。
 - **多端响应式体验**：
   - 移动端自动优化界面排版并隐藏复杂工具栏。
   - 标题长文本智能缩小字号，确保在 PC 端单行水平对齐不折行。
@@ -60,18 +60,13 @@
 wirteLogFile = false
 
 # 服务监听端口
-serverPort = 8787
+serverPort = 37101
 
 # 文档路径标识符长度
 keyLength = 6
 
 # MySQL 数据库连接串
 mysqDsn = "user:password@tcp(127.0.0.1:3306)/notepad?charset=utf8mb4&parseTime=true&loc=Local"
-
-# 可选：SSL 证书配置（不配置则默认读取 ssl/ 目录证书，无证书时自动使用纯 HTTP）
-[note.ssl]
-cert_file = "ssl/fullchain.cer"
-key_file = "ssl/example.com.key"
 ```
 
 ### 3. 运行服务

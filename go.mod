@@ -7,7 +7,6 @@ require github.com/gin-gonic/gin v1.9.1
 require (
 	github.com/cute-angelia/go-xutils v1.8.91
 	github.com/minio/minio-go/v7 v7.0.99
-	github.com/soheilhy/cmux v0.1.5
 	github.com/spf13/viper v1.11.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1

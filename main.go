@@ -139,23 +139,10 @@ func main() {
 	})
 
 	port := viper.GetString("note.serverPort")
-	viper.SetDefault("note.ssl.cert_file", "ssl/fullchain.cer")
-	viper.SetDefault("note.ssl.key_file", "ssl/example.com.key")
+	server := webserver.New(":"+port, r)
+	log.Printf("notepad-online 启动 HTTP, port: %s", port)
 
-	server, err := webserver.New(":"+port, r,
-		viper.GetString("note.ssl.cert_file"),
-		viper.GetString("note.ssl.key_file"))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if server.TLSConfig != nil {
-		log.Printf("notepad-online 启动 HTTP + HTTPS, port: %s", port)
-	} else {
-		log.Printf("notepad-online 启动 HTTP, port: %s", port)
-	}
-
-	if err := webserver.ListenAndServe(server); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 }
