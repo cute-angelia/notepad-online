@@ -71,7 +71,7 @@ mysqDsn = "user:password@tcp(127.0.0.1:3306)/notepad?charset=utf8mb4&parseTime=t
 # 可选：SSL 证书配置（不配置则默认读取 ssl/ 目录证书，无证书时自动使用纯 HTTP）
 [note.ssl]
 cert_file = "ssl/fullchain.cer"
-key_file = "ssl/home.shixinyi.cn.key"
+key_file = "ssl/example.com.key"
 ```
 
 ### 3. 运行服务

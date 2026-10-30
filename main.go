@@ -140,7 +140,7 @@ func main() {
 
 	port := viper.GetString("note.serverPort")
 	viper.SetDefault("note.ssl.cert_file", "ssl/fullchain.cer")
-	viper.SetDefault("note.ssl.key_file", "ssl/home.shixinyi.cn.key")
+	viper.SetDefault("note.ssl.key_file", "ssl/example.com.key")
 
 	server, err := webserver.New(":"+port, r,
 		viper.GetString("note.ssl.cert_file"),

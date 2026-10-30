@@ -6,7 +6,7 @@ mysqDsn = "root:LuXXX@tcp(hXXX:3306)/XXX?charset=utf8mb4&parseTime=true&loc=Loca
 
 [note.ssl]
 cert_file = "ssl/fullchain.cer"
-key_file = "ssl/home.shixinyi.cn.key"
+key_file = "ssl/example.com.key"
 
 # Optional public media storage. Provision the bucket and public-read policy
 # yourself; the application never creates buckets or changes their policies.
