@@ -1,0 +1,15 @@
+.media-transfers { border-top: 1px solid var(--line, #e5e5e0); padding: 10px 16px; }
+.media-transfers[hidden] { display: none; }
+.media-transfer { display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 12px; }
+.media-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.media-state { color: #657266; overflow-wrap: anywhere; }
+.media-transfer progress { width: 100px; height: 5px; accent-color: #49684f; flex-shrink: 0; }
+.media-transfer button { flex-shrink: 0; }
+.media-transfer[data-state="error"] .media-state { color: #b54736; }
+.markdown-body video { display: block; width: 100%; max-height: 70vh; margin: 1em 0; border-radius: 6px; background: #151515; }
+@media (max-width: 760px) {
+  .media-transfer { flex-wrap: wrap; gap: 6px 10px; }
+  .media-name { flex-basis: 100%; }
+  .media-transfer progress { width: 70px; }
+  .media-state { flex: 1; }
+}

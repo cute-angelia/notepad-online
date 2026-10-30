@@ -1,7 +1,7 @@
 /* Render Markdown through an allowlist before attaching it to the document. */
 (function () {
     'use strict';
-    var allowed = new Set('P BR HR H1 H2 H3 H4 H5 H6 STRONG EM DEL BLOCKQUOTE UL OL LI PRE CODE A IMG TABLE THEAD TBODY TR TH TD INPUT'.split(' '));
+    var allowed = new Set('P BR HR H1 H2 H3 H4 H5 H6 STRONG EM DEL BLOCKQUOTE UL OL LI PRE CODE A IMG VIDEO TABLE THEAD TBODY TR TH TD INPUT'.split(' '));
     function safeURL(value, image) {
         var clean = value.replace(/[\u0000-\u0020\u007f]/g, '');
         if (!clean) return false;
@@ -15,6 +15,11 @@
         // Strip raw HTML as well as sanitizing generated nodes below.
         var renderer = new marked.Renderer();
         renderer.html = function (html) { return html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+        var renderLink = renderer.link.bind(renderer);
+        renderer.link = function (href, title, text) {
+            var video = window.NotepadMedia && window.NotepadMedia.videoHTML(href, title, text);
+            return video || renderLink(href, title, text);
+        };
         fragment.innerHTML = window.markdownTools.renderMarkdown(source, function (body) {return marked.parse(body, { renderer: renderer, gfm: true, breaks: false });});
         function sanitize(parent) {
             Array.from(parent.children).forEach(function (element) {
@@ -23,6 +28,7 @@
                     var name = attribute.name, tag = element.tagName;
                     var keep = (tag === 'A' && (name === 'href' || name === 'title')) ||
                         (tag === 'IMG' && (name === 'src' || name === 'alt' || name === 'title')) ||
+                        (tag === 'VIDEO' && (name === 'src' || name === 'controls' || name === 'aria-label' || (name === 'preload' && attribute.value === 'metadata'))) ||
                         (tag === 'OL' && name === 'start' && /^\d+$/.test(attribute.value)) ||
                         (tag === 'TABLE' && name === 'class' && attribute.value === 'yaml-front-matter') ||
                         (tag === 'TH' && name === 'scope' && attribute.value === 'row') ||
@@ -37,6 +43,10 @@
                 if (element.tagName === 'IMG') {
                     if (!safeURL(element.getAttribute('src') || '', true)) element.removeAttribute('src');
                     element.setAttribute('loading', 'lazy'); element.setAttribute('referrerpolicy', 'no-referrer');
+                }
+                if (element.tagName === 'VIDEO') {
+                    if (!safeURL(element.getAttribute('src') || '', true)) element.removeAttribute('src');
+                    element.setAttribute('controls', ''); element.setAttribute('preload', 'metadata');
                 }
                 if (element.tagName === 'INPUT') { element.setAttribute('type', 'checkbox'); element.disabled = true; }
                 sanitize(element);

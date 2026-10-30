@@ -20,6 +20,7 @@
     }
     function scrollToSource(entry) {
         var offset = entry.offset, end = textarea.value.indexOf('\n', offset);
+        if (window.noteEditor && window.noteEditor.scrollToOffset(offset, end < 0 ? textarea.value.length : end)) return;
         textarea.focus({preventScroll: true});
         textarea.setSelectionRange(offset, end < 0 ? textarea.value.length : end);
         // A mirror accounts for wrapping; a line count would drift on long lines.

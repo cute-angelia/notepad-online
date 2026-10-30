@@ -7,3 +7,19 @@ mysqDsn = "root:LuXXX@tcp(hXXX:3306)/XXX?charset=utf8mb4&parseTime=true&loc=Loca
 [note.ssl]
 cert_file = "ssl/fullchain.cer"
 key_file = "ssl/home.shixinyi.cn.key"
+
+# Optional public media storage. Provision the bucket and public-read policy
+# yourself; the application never creates buckets or changes their policies.
+[minio]
+enabled = false
+endPoint = "127.0.0.1:9000"
+accessKeyId = "YOUR_ACCESS_KEY"
+secretAccessKey = "YOUR_SECRET_KEY"
+useSsl = false
+timeout = 120 # Seconds per storage operation; duration strings such as "2m" also work.
+bucket = "notepad-media"
+prefix = "notes" # Object key: notes/YYYY-MM/random.ext (Asia/Shanghai).
+publicUrl = "https://files.example.com/notepad-media" # Optional public base including bucket; defaults to endpoint/bucket.
+imageMaxSize = 20971520 # 20 MiB, bytes.
+videoMaxSize = 5368709120 # 5 GiB, bytes.
+partRequestsPerMinute = 1000 # Separate per-IP PUT-part budget; ordinary routes stay at 120/min.

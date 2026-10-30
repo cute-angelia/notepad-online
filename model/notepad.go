@@ -52,7 +52,7 @@ func Migrate(db *gorm.DB) error {
 			return fmt.Errorf("notepad migration: %d duplicate slugs; resolve duplicates before adding unique index", duplicates)
 		}
 	}
-	if err := db.AutoMigrate(&NotepadModel{}, &BrowserGrant{}); err != nil {
+	if err := db.AutoMigrate(&NotepadModel{}, &BrowserGrant{}, &Attachment{}); err != nil {
 		return err
 	}
 	return db.Transaction(func(tx *gorm.DB) error {

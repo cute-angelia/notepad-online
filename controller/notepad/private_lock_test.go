@@ -46,6 +46,25 @@ func TestPrivateLock_Lifecycle(t *testing.T) {
 		t.Fatalf("unauthorized view page missing data-private-locked: %s", bodyAnon)
 	}
 
+	// 2.1 Unauthorized visitor requesting /edit must not leak content or title
+	wEditAnon := request(r, "GET", "/private-note/edit", nil)
+	if wEditAnon.Code != 200 {
+		t.Fatalf("expected 200 on edit page for unauthorized visitor, got %d", wEditAnon.Code)
+	}
+	bodyEditAnon := wEditAnon.Body.String()
+	if strings.Contains(bodyEditAnon, "机密正文内容") {
+		t.Fatalf("unauthorized edit page leaked secret text in HTML: %s", bodyEditAnon)
+	}
+	if strings.Contains(bodyEditAnon, "机密标题") {
+		t.Fatalf("unauthorized edit page leaked secret title in HTML: %s", bodyEditAnon)
+	}
+	if !strings.Contains(bodyEditAnon, "非公开文档") {
+		t.Fatalf("unauthorized edit page missing private doc notice: %s", bodyEditAnon)
+	}
+	if !strings.Contains(bodyEditAnon, `data-private-locked="true"`) {
+		t.Fatalf("unauthorized edit page missing data-private-locked: %s", bodyEditAnon)
+	}
+
 	// 3. Unauthorized visitor requesting /raw
 	wRawAnon := request(r, "GET", "/private-note/raw", nil)
 	if wRawAnon.Code != 403 {
@@ -165,5 +184,25 @@ func TestPrivateLock_QueryViewPwd(t *testing.T) {
 	})
 	if wSave.Code != 403 {
 		t.Fatalf("expected 403 on save without edit auth, got %d", wSave.Code)
+	}
+
+	// Bad pwd on raw increments failed attempts
+	wBad := request(r, "GET", "/vcode-note/raw?view_pwd=wrongpass", nil)
+	if wBad.Code != 403 {
+		t.Fatalf("expected 403 for wrong view_pwd on raw, got %d", wBad.Code)
+	}
+	var updated model.NotepadModel
+	s.DB.Where("slug = ?", "vcode-note").First(&updated)
+	if updated.FailedAttempts != 1 {
+		t.Fatalf("expected FailedAttempts to be 1, got %d", updated.FailedAttempts)
+	}
+}
+
+func TestReservedSlugs(t *testing.T) {
+	reserved := []string{"api", "static", "robots.txt", "favicon.ico"}
+	for _, slug := range reserved {
+		if validSlug(slug) {
+			t.Errorf("expected validSlug(%q) to be false", slug)
+		}
 	}
 }

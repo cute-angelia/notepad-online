@@ -110,3 +110,9 @@ test('rapid clicks only submit one verification', async () => {
     await Promise.all([p.click(), p.click()]);
     assert.equal(p.requests.length, 1);
 });
+
+test('view_pwd does not overwrite master secret in storage', async () => {
+    const p = page({query: '?view_pwd=guest_secret', cached: 'master_secret'});
+    assert.equal(p.storage.get('notepad:secret:sample'), 'master_secret');
+    assert.equal(p.storage.get('notepad:view_secret:sample'), 'guest_secret');
+});

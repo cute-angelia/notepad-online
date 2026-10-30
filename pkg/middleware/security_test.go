@@ -74,6 +74,67 @@ func TestMaxBodySize(t *testing.T) {
 	}
 }
 
+func TestOnlyMatchedMediaPartPUTHasLargerBodyAllowance(t *testing.T) {
+	r := gin.New()
+	r.Use(MaxBodySizeWithMediaParts(5, 8))
+	handler := func(c *gin.Context) {
+		if _, err := io.Copy(io.Discard, c.Request.Body); err != nil {
+			c.Status(413)
+			return
+		}
+		c.Status(200)
+	}
+	r.PUT("/:id/attachments/:attachment/parts/:part", handler)
+	r.POST("/:id/attachments/:attachment/parts/:part", handler)
+	r.PUT("/ordinary", handler)
+	for _, sample := range []struct {
+		method, path string
+		size, status int
+	}{
+		{"PUT", "/note/attachments/file/parts/1", 8, 200},
+		{"PUT", "/note/attachments/file/parts/1", 9, 413},
+		{"POST", "/note/attachments/file/parts/1", 8, 413},
+		{"PUT", "/ordinary", 8, 413},
+	} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(sample.method, sample.path, bytes.NewReader(make([]byte, sample.size))))
+		if w.Code != sample.status {
+			t.Fatalf("%s %s = %d", sample.method, sample.path, w.Code)
+		}
+	}
+}
+
+func TestMediaPartRateLimitDoesNotExhaustOrdinaryDocumentBudget(t *testing.T) {
+	r := gin.New()
+	ordinary := NewIPRateLimiter(1, time.Minute)
+	parts := NewIPRateLimiter(3, time.Minute)
+	r.Use(MediaAwareRateLimiter(ordinary, parts))
+	r.PUT("/:id/attachments/:attachment/parts/:part", func(c *gin.Context) { c.Status(200) })
+	r.POST("/:id", func(c *gin.Context) { c.Status(200) })
+	for i := 0; i < 4; i++ {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("PUT", "/note/attachments/file/parts/1", nil))
+		want := 200
+		if i == 3 {
+			want = 429
+		}
+		if w.Code != want {
+			t.Fatalf("part %d: %d", i, w.Code)
+		}
+	}
+	for i := 0; i < 2; i++ {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("POST", "/note", nil))
+		want := 200
+		if i == 1 {
+			want = 429
+		}
+		if w.Code != want {
+			t.Fatalf("ordinary %d: %d", i, w.Code)
+		}
+	}
+}
+
 func TestIPRateLimiter(t *testing.T) {
 	r := gin.New()
 	limiter := NewIPRateLimiter(3, 500*time.Millisecond) // 3 requests per 500ms
@@ -158,5 +219,33 @@ func TestIPScanBanLimiter(t *testing.T) {
 	r.ServeHTTP(wAfter, reqAfter)
 	if wAfter.Code != http.StatusOK {
 		t.Errorf("expected 200 after ban expired, got %d", wAfter.Code)
+	}
+}
+
+func TestIPAuthFailureBanLimiter(t *testing.T) {
+	limiter := NewIPAuthFailureBanLimiter(3, 1*time.Second, 500*time.Millisecond)
+	r := gin.New()
+	r.Use(limiter.Middleware())
+	r.POST("/:id/unlock", func(c *gin.Context) {
+		c.Status(http.StatusForbidden)
+	})
+	r.GET("/:id/raw", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	for i := 1; i <= 3; i++ {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/test/unlock", nil)
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusForbidden {
+			t.Errorf("request %d: expected 403, got %d", i, w.Code)
+		}
+	}
+
+	wBanned := httptest.NewRecorder()
+	reqBanned, _ := http.NewRequest(http.MethodGet, "/test/raw", nil)
+	r.ServeHTTP(wBanned, reqBanned)
+	if wBanned.Code != http.StatusForbidden {
+		t.Errorf("expected 403 Forbidden while banned, got %d", wBanned.Code)
 	}
 }

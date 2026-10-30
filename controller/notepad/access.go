@@ -3,6 +3,7 @@ package notepad
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -115,7 +116,7 @@ func verifySecret(storedSecret, inputSecret string) bool {
 	if storedSecret == "" || inputSecret == "" {
 		return false
 	}
-	return storedSecret == inputSecret
+	return subtle.ConstantTimeCompare([]byte(storedSecret), []byte(inputSecret)) == 1
 }
 
 func validSecret(secret string) bool {

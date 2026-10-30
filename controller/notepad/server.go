@@ -11,11 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"note/model"
+	"note/pkg/attachments"
 )
 
 type Server struct {
-	DB  *gorm.DB
-	Now func() time.Time
+	DB    *gorm.DB
+	Now   func() time.Time
+	Media *attachments.Service
 }
 
 func NewServer(db *gorm.DB) *Server { return &Server{DB: db, Now: time.Now} }
@@ -29,6 +31,11 @@ func (s *Server) RegisterRoutes(r gin.IRouter) {
 	r.GET("/:id/raw", s.Raw)
 	r.POST("/:id", writeGuard, s.Save)
 	r.POST("/:id/unlock", writeGuard, s.Unlock)
+	r.GET("/:id/attachments", writeGuard, s.ListAttachments)
+	r.POST("/:id/attachments", writeGuard, s.BeginAttachment)
+	r.PUT("/:id/attachments/:attachment/parts/:part", writeGuard, s.UploadAttachmentPart)
+	r.POST("/:id/attachments/:attachment/complete", writeGuard, s.CompleteAttachment)
+	r.DELETE("/:id/attachments/:attachment", writeGuard, s.DeleteAttachment)
 }
 func writeGuard(c *gin.Context) {
 	if c.GetHeader("X-Notepad-Request") != "1" {
@@ -50,7 +57,7 @@ func writeGuard(c *gin.Context) {
 	c.Next()
 }
 func validSlug(slug string) bool {
-	if slug == "" || slug == "favicon.ico" || slug == "robots.txt" || len([]rune(slug)) > 32 {
+	if slug == "" || slug == "favicon.ico" || slug == "robots.txt" || slug == "api" || slug == "static" || len([]rune(slug)) > 32 {
 		return false
 	}
 	if strings.TrimSpace(slug) != slug || slug == "." || slug == ".." {
@@ -177,12 +184,42 @@ func (s *Server) Edit(c *gin.Context) {
 			serverError(c)
 			return
 		}
-		initialSecret := ""
-		initialViewSecret := ""
-		if allowed {
-			initialSecret = n.Secret
-			initialViewSecret = n.ViewSecret
+		pwd := c.Query("pwd")
+		if !allowed && pwd != "" && verifySecret(n.Secret, pwd) {
+			token, err := s.browser(c, true)
+			if err == nil {
+				_ = s.grant(s.DB, n, token, n.Secret)
+				allowed = true
+			}
 		}
-		s.render(c, n, allowed, false, initialSecret, initialViewSecret, "", false)
+
+		if allowed {
+			s.render(c, n, true, false, n.Secret, n.ViewSecret, "", false)
+			return
+		}
+
+		isViewerAllowed, err := s.authorizedViewer(s.DB, c, n)
+		if err != nil {
+			serverError(c)
+			return
+		}
+		viewPwd := c.Query("view_pwd")
+		if !isViewerAllowed && viewPwd != "" && n.ViewSecret != "" && verifySecret(n.ViewSecret, viewPwd) {
+			token, err := s.browser(c, true)
+			if err == nil {
+				_ = s.grant(s.DB, n, token, n.ViewSecret)
+				isViewerAllowed = true
+			}
+		}
+
+		if n.IsPrivate == 1 && !isViewerAllowed {
+			masked := n
+			masked.Title = "非公开文档"
+			masked.Text = ""
+			s.render(c, masked, false, false, "", "", "", true)
+			return
+		}
+
+		s.render(c, n, false, false, "", "", "", false)
 	}
 }

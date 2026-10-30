@@ -15,16 +15,38 @@ import (
 	"net/http"
 	"note/controller/notepad"
 	"note/model"
+	"note/pkg/attachments"
 	"note/pkg/middleware"
 	"note/pkg/webserver"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
 
 //go:embed static/* templates/*
 var staticFS embed.FS
+
+func mediaConfig() attachments.Config {
+	var timeout time.Duration
+	if raw := viper.GetString("minio.timeout"); raw != "" {
+		if seconds, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			timeout = time.Duration(seconds) * time.Second
+		} else if duration, err := time.ParseDuration(raw); err == nil {
+			timeout = duration
+		} else {
+			timeout = -1 // New rejects malformed values instead of silently defaulting.
+		}
+	}
+	return attachments.Config{
+		Enabled: viper.GetBool("minio.enabled"), EndPoint: viper.GetString("minio.endPoint"),
+		AccessKeyID: viper.GetString("minio.accessKeyId"), SecretAccessKey: viper.GetString("minio.secretAccessKey"),
+		UseSSL: viper.GetBool("minio.useSsl"), Timeout: timeout,
+		Bucket: viper.GetString("minio.bucket"), Prefix: viper.GetString("minio.prefix"), PublicURL: viper.GetString("minio.publicUrl"),
+		ImageMaxSize: viper.GetInt64("minio.imageMaxSize"), VideoMaxSize: viper.GetInt64("minio.videoMaxSize"),
+	}
+}
 
 func main() {
 	// 加载配置
@@ -49,6 +71,10 @@ func main() {
 	if err := model.Migrate(orm); err != nil {
 		log.Fatalf("database migration failed: %v", err)
 	}
+	media, err := attachments.New(mediaConfig())
+	if err != nil {
+		log.Fatalf("attachment storage configuration failed: %v", err)
+	}
 
 	// Gin
 	r := gin.Default()
@@ -60,12 +86,20 @@ func main() {
 
 	// 全局安全中间件：安全响应头、最大请求体限制 (5MB)
 	r.Use(middleware.SecurityHeaders())
-	r.Use(middleware.MaxBodySize(5 << 20))
+	r.Use(middleware.MaxBodySizeWithMediaParts(5<<20, attachments.PartSize))
 
 	// 动态路由限流：每个 IP 每分钟最多 120 次请求（兼顾正常编辑与防暴力枚举）
 	limiter := middleware.NewIPRateLimiter(120, time.Minute)
+	viper.SetDefault("minio.partRequestsPerMinute", 1000)
+	partRate := viper.GetInt("minio.partRequestsPerMinute")
+	if partRate < 1 {
+		log.Fatal("minio.partRequestsPerMinute must be positive")
+	}
+	partLimiter := middleware.NewIPRateLimiter(partRate, time.Minute)
 	// 防乱扫路径：1分钟内累计 10 次 404 则封禁 IP 10 分钟
 	scanBanLimiter := middleware.NewIPScanBanLimiter(10, time.Minute, 10*time.Minute)
+	// 防爆破秘钥与恶意 DoS 锁定：1分钟内累计 5 次输错秘钥则封禁 IP 15 分钟
+	authBanLimiter := middleware.NewIPAuthFailureBanLimiter(5, time.Minute, 15*time.Minute)
 
 	// 静态及基础设施路由
 	r.GET("/robots.txt", notepad.RobotsHandle)
@@ -76,9 +110,12 @@ func main() {
 	// 记事本业务路由
 	noteGroup := r.Group("/")
 	noteGroup.Use(scanBanLimiter.Middleware())
-	noteGroup.Use(limiter.Middleware())
+	noteGroup.Use(authBanLimiter.Middleware())
+	noteGroup.Use(middleware.MediaAwareRateLimiter(limiter, partLimiter))
 	{
-		notepad.NewServer(orm).RegisterRoutes(noteGroup)
+		noteServer := notepad.NewServer(orm)
+		noteServer.Media = media
+		noteServer.RegisterRoutes(noteGroup)
 	}
 
 	// 静态文件

@@ -9,7 +9,7 @@
 ## ✨ 核心特性
 
 - **三种文档模式**：
-  - **Markdown 模式**：内置格式工具栏、左右实时预览、数学公式与自动大纲目录（TOC）。
+  - **Markdown 模式**：编辑区保留 Markdown 符号并显示标题字号、语法样式，支持列表续写、丰富工具栏、左右实时预览与自动大纲目录（TOC）。
   - **纯文本 (Text) 模式**：极简清爽，专注轻量文本传递。
   - **代码 (Code) 模式**：自带 GitHub 风格浅色高亮、行号引导栏、Tab 智能缩进及一键复制代码。
 - **只读与编辑分离**：
@@ -85,6 +85,36 @@ pm2 start pm2_nas.json
 ```
 
 服务启动时会自动检查并执行数据库迁移。
+
+### MinIO 图片与视频附件
+
+Markdown 编辑器支持工具栏选择文件、拖拽文件及粘贴图片。图片默认上限 20 MiB，视频默认上限 5 GiB。文件按 8 MiB 分片顺序上传，Go 流式转发每片，不将整个视频载入内存；失败的分片自动重试，可取消上传。
+
+在 `config.toml` 中添加 `[minio]`，连接字段沿用参考项目的 `minio.nas` 命名：
+
+```toml
+[minio]
+enabled = true
+endPoint = "minio.example.com:9000"
+accessKeyId = "YOUR_ACCESS_KEY"
+secretAccessKey = "YOUR_SECRET_KEY"
+useSsl = true
+timeout = 120
+bucket = "notepad"
+prefix = "uploads"
+# 可选：公开访问地址，包含 bucket 或对应的 CDN 路径
+publicUrl = "https://media.example.com/notepad"
+imageMaxSize = 20971520
+videoMaxSize = 5368709120
+```
+
+对象按北京时间存入 `uploads/YYYY-MM/随机文件名.ext`，例如 `uploads/2026-10/随机文件名.jpg`。不配置 MinIO 或关闭 `enabled` 不影响文本编辑。凭据只在 Go 服务端使用，不下发浏览器，也不要提交实际 `config.toml`。
+
+附件使用永久公开链接，私密笔记也不保护附件 URL。请自行配置已有 bucket 或 CDN 的公开读取权限；服务不会创建 bucket 或修改访问策略。图片插入为 Markdown 图片，视频插入为 `[文件名](地址 "video")`，查看页和实时预览显示播放器。
+
+**编辑过程中移除本系统上传附件的最后一处引用，会立即请求删除 MinIO 文件，不等保存、不延迟、不进回收站。撤销编辑不会恢复文件。** 不做跨文档引用计数，不会删除外部链接指向的文件；删除失败会在附件栏提供重试按钮。上传和删除接口仍需当前文档的编辑授权。
+
+若通过 Nginx 等反向代理部署，将单请求大小设为至少 9 MiB，并为慢速上传留出足够超时；不需要允许单次 5 GiB 请求。例如上传路由可配置 `client_max_body_size 9m`、`proxy_request_buffering off`、`proxy_read_timeout 300s`。中断上传会主动终止分片，但浏览器崩溃或断电无法保证发出取消请求，可在 MinIO 运维端设置未完成分片的过期清理规则。
 
 ---
 

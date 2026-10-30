@@ -10,21 +10,31 @@
   var unlockDialog = document.getElementById('unlock-dialog'), codeGutter = document.getElementById('code-gutter');
   var lockedUntil = Number(body.dataset.lockedUntil), blocked = lockedUntil * 1000 > Date.now();
   var secretStorageKey = 'notepad:secret:' + tag;
+  var viewSecretStorageKey = 'notepad:view_secret:' + tag;
   function rememberSecret(value) {
     try { window.localStorage.setItem(secretStorageKey, value); } catch (_) { /* Saving still works when browser storage is unavailable. */ }
   }
+  function rememberViewSecret(value) {
+    try { window.localStorage.setItem(viewSecretStorageKey, value); } catch (_) {}
+  }
   var cachedSecret = '';
   if (!editable && !isNew) {
-    cachedSecret = new URLSearchParams(window.location.search).get('view_pwd') || new URLSearchParams(window.location.search).get('pwd') || '';
-    if (cachedSecret) rememberSecret(cachedSecret);
-    else {
+    var urlParams = new URLSearchParams(window.location.search);
+    var urlPwd = urlParams.get('pwd');
+    var urlViewPwd = urlParams.get('view_pwd');
+    if (urlPwd) {
+      cachedSecret = urlPwd;
+      rememberSecret(urlPwd);
+    } else if (urlViewPwd) {
+      rememberViewSecret(urlViewPwd);
+    } else {
       try { cachedSecret = window.localStorage.getItem(secretStorageKey) || ''; } catch (_) { /* Manual verification remains available. */ }
     }
   }
   if (editable && !isNew) {
     try {
       var stored = window.localStorage.getItem(secretStorageKey);
-      if (stored) {
+      if (stored && !secret.value) {
         secret.value = stored;
       }
     } catch (_) { /* Use the editable field when storage is unavailable. */ }
@@ -33,7 +43,7 @@
   var viewSecretWrap = document.getElementById('view-secret-wrap');
   var randomViewSecretBtn = document.getElementById('random-view-secret');
   var lastSaved, savedSecret = secret ? secret.value : '', savedViewSecret = viewSecret ? viewSecret.value : '';
-  var inFlight = null, timer, previewOpen = false;
+  var inFlight = null, timer, previewOpen = false, noteEditor = null;
   var mobile = window.matchMedia('(max-width: 760px)');
   var isPrivate = body.dataset.isPrivate === 'true';
   var lockToggle = document.getElementById('lock-toggle');
@@ -128,6 +138,7 @@
     var time = lockedUntil ? new Date(lockedUntil * 1000).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '明天';
     showNotice('本文档今天已锁定，所有人均无法编辑。预计 ' + time + '（北京时间）恢复。', 'info');
     if (textarea) textarea.readOnly = true;
+    if (noteEditor) noteEditor.readOnly(true);
     if (title) title.disabled = true;
     if (secret) secret.disabled = true;
     document.querySelectorAll('.type-switch button, .markdown-toolbar button, #random-secret, #random-view-secret').forEach(function (button) { button.disabled = true; });
@@ -137,6 +148,7 @@
       blocked = false;
       if (editable) {
         textarea.readOnly = false; title.disabled = false; secret.disabled = false; if (viewSecret) viewSecret.disabled = false;
+        if (noteEditor) noteEditor.readOnly(false);
         document.querySelectorAll('.type-switch button, .markdown-toolbar button, #random-secret, #random-view-secret').forEach(function (button) { button.disabled = false; });
         setStatus(changed() ? '保存中' : '已保存');
       }
@@ -173,17 +185,20 @@
   function updateDocument() {
     if (!editable) return;
     doc.dataset.kind = kind;
+    if (noteEditor) noteEditor.setMode(kind);
     window.documentOutline.update(textarea.value, document.getElementById('preview-content'), kind === 'markdown');
     title.style.height = 'auto'; title.style.height = title.scrollHeight + 'px';
     document.querySelectorAll('.type-switch button').forEach(function (button) { button.setAttribute('aria-pressed', String(button.dataset.kind === kind)); });
     toolbar.hidden = kind !== 'markdown'; previewButton.hidden = kind !== 'markdown';
     var show = previewOpen && kind === 'markdown' && !mobile.matches;
+    var layoutChanged = doc.classList.contains('is-preview') !== show;
     doc.classList.toggle('is-preview', show); preview.hidden = !show;
+    if (layoutChanged && noteEditor) requestAnimationFrame(function () { noteEditor.refresh(); });
     previewButton.setAttribute('aria-pressed', String(show));
     previewButton.querySelector('span').textContent = show ? '收起预览' : '实时预览';
     if (show) {
       requestAnimationFrame(function () {
-        syncScroll(textarea, preview);
+        syncScroll(noteEditor ? noteEditor.getScrollElement() : textarea, preview);
       });
     }
     if (kind === 'code') {
@@ -344,15 +359,20 @@
     button.disabled = true; errorLabel.textContent = '';
     try {
       var result = await api('/' + encodeURIComponent(tag) + '/unlock', { secret: enteredSecret });
-      rememberSecret(enteredSecret);
       if (unlockMode === 'edit') {
         if (result.role === 'viewer') {
           openUnlock('edit');
-          errorLabel.textContent = '此为查看码，仅可浏览，无法编辑。如需编辑请输入编辑秘钥。';
+          errorLabel.textContent = '秘钥不正确';
           return;
         }
+        rememberSecret(enteredSecret);
         window.location.assign(result.edit_url);
       } else {
+        if (result.role === 'editor') {
+          rememberSecret(enteredSecret);
+        } else if (result.role === 'viewer') {
+          rememberViewSecret(enteredSecret);
+        }
         window.location.reload();
       }
     }
@@ -377,6 +397,32 @@
 
   if (editable) {
     lastSaved = isNew ? null : JSON.stringify(snapshot());
+    if (window.NotepadMarkdownEditor) {
+      noteEditor = window.NotepadMarkdownEditor.mount({ textarea: textarea, CodeMirror: window.CodeMirror, table: window.markdownTools.table });
+      window.noteEditor = noteEditor;
+      noteEditor.onScroll(function (source) {
+        if (activeScrollPane !== 'preview') syncScroll(source, preview);
+      });
+    }
+    if (window.NotepadMedia) {
+      window.NotepadMedia.mount({
+        textarea: textarea,
+        editorHost: document.getElementById('code-editor-wrap'),
+        getSlug: function () { return slug; },
+        isNew: function () { return isNew; },
+        ready: async function () { if (isNew) await save(); return slug; },
+        isEnabled: function () { return kind === 'markdown' && !blocked; },
+        notify: showToast,
+        captureInsertion: function () { return noteEditor ? noteEditor.captureInsertionPoint() : null; },
+        insert: function (text) {
+          if (noteEditor) noteEditor.replaceSelection(text);
+          else {
+            textarea.setRangeText(text, textarea.selectionStart, textarea.selectionEnd, 'end');
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        }
+      });
+    }
     if (lockToggle) {
       lockToggle.addEventListener('click', async function () {
         if (blocked) return;
@@ -426,10 +472,11 @@
 
     var setHover = function (pane) { activeScrollPane = pane; clearTimeout(scrollReleaseTimer); };
     var clearHover = function () { scrollReleaseTimer = setTimeout(function () { activeScrollPane = null; }, 300); };
-    textarea.addEventListener('mouseenter', function () { setHover('source'); });
-    textarea.addEventListener('mouseleave', clearHover);
-    textarea.addEventListener('touchstart', function () { setHover('source'); }, { passive: true });
-    textarea.addEventListener('touchend', clearHover);
+    var sourceHost = document.getElementById('code-editor-wrap');
+    sourceHost.addEventListener('mouseenter', function () { setHover('source'); });
+    sourceHost.addEventListener('mouseleave', clearHover);
+    sourceHost.addEventListener('touchstart', function () { setHover('source'); }, { passive: true });
+    sourceHost.addEventListener('touchend', clearHover);
     preview.addEventListener('mouseenter', function () { setHover('preview'); });
     preview.addEventListener('mouseleave', clearHover);
     preview.addEventListener('touchstart', function () { setHover('preview'); }, { passive: true });
@@ -445,7 +492,7 @@
 
     preview.addEventListener('scroll', function () {
       if (activeScrollPane === 'source') return;
-      syncScroll(preview, textarea);
+      syncScroll(preview, noteEditor ? noteEditor.getScrollElement() : textarea);
     }, { passive: true });
     secret.addEventListener('click', async function () {
       if (!secret.value) return;
@@ -469,21 +516,19 @@
     document.querySelectorAll('[data-format]').forEach(function (button) {
       button.addEventListener('mousedown', function (event) { event.preventDefault(); });
       button.addEventListener('click', function () {
-        if (blocked) return;
-        var start = textarea.selectionStart, end = textarea.selectionEnd, selected = textarea.value.slice(start, end), replacement, offset = 0;
-        switch (button.dataset.format) {
-          case 'bold': replacement = '**' + (selected || '加粗文字') + '**'; offset = 2; break;
-          case 'heading': start = start === 0 ? 0 : textarea.value.lastIndexOf('\n', start - 1) + 1; replacement = '### ' + textarea.value.slice(start, end).replace(/^ {0,3}#{1,6}[ \t]+/, ''); offset = 4; break;
-          case 'list': start = start === 0 ? 0 : textarea.value.lastIndexOf('\n', start - 1) + 1; replacement = (textarea.value.slice(start, end) || '列表项').split('\n').map(function (line) { return '- ' + line; }).join('\n'); offset = 2; break;
-          case 'link': replacement = '[' + (selected || '链接文字') + '](https://)'; offset = 1; break;
-          case 'table': replacement = (start && textarea.value[start - 1] !== '\n' ? '\n\n' : '') + window.markdownTools.table(selected) + '\n'; offset = replacement.indexOf('| ') + 2; break;
-          case 'code': replacement = (start && textarea.value[start - 1] !== '\n' ? '\n' : '') + '```\n' + (selected || '代码') + '\n```\n'; offset = replacement.indexOf('```') + 4; break;
-        }
-        textarea.setRangeText(replacement, start, end, 'end'); textarea.focus();
-        if (button.dataset.format === 'table' && !selected) textarea.setSelectionRange(start + offset, start + offset + 3);
-        else if (!selected) textarea.setSelectionRange(start + offset, start + replacement.length - (button.dataset.format === 'bold' ? 2 : 0));
-        updateDocument(); schedule();
+        if (blocked || kind !== 'markdown' || !noteEditor) return;
+        noteEditor.format(button.dataset.format);
+        toolbar.querySelectorAll('details[open]').forEach(function (details) { details.open = false; });
       });
+    });
+    document.addEventListener('click', function (event) {
+      toolbar.querySelectorAll('details[open]').forEach(function (details) {
+        if (!details.contains(event.target)) details.open = false;
+      });
+    });
+    toolbar.addEventListener('keydown', function (event) {
+      if (event.key !== 'Escape') return;
+      toolbar.querySelectorAll('details[open]').forEach(function (details) { details.open = false; details.querySelector('summary').focus(); });
     });
     textarea.addEventListener('keydown', function (e) {
       if (kind !== 'code' || blocked) return;
@@ -517,8 +562,7 @@
             this.setRangeText('    ', start, end, 'end');
           }
         }
-        updateDocument();
-        schedule();
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
       } else if (e.key === 'Enter') {
         var start = this.selectionStart, val = this.value;
         var lineStart = val.lastIndexOf('\n', start - 1) + 1;
@@ -528,8 +572,7 @@
           e.preventDefault();
           var indent = match[1];
           this.setRangeText('\n' + indent, start, start, 'end');
-          updateDocument();
-          schedule();
+          textarea.dispatchEvent(new Event('input', { bubbles: true }));
         }
       }
     });
