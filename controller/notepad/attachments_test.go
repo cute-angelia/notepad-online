@@ -110,6 +110,7 @@ func TestAttachmentsRequireEditorWriteGuardAndRespectLock(t *testing.T) {
 		{"PUT", "/media-note/attachments/" + id + "/parts/1", "12345678"},
 		{"POST", "/media-note/attachments/" + id + "/complete", `{"parts":[]}`},
 		{"DELETE", "/media-note/attachments/" + id, ""},
+		{"POST", "/media-note/attachments/" + id + "/review", `{"action":"keep"}`},
 	} {
 		if w := mediaRequest(r, route.method, route.path, route.body); w.Code != 403 {
 			t.Fatalf("unauthorized %s: %d", route.path, w.Code)
@@ -128,6 +129,9 @@ func TestAttachmentsRequireEditorWriteGuardAndRespectLock(t *testing.T) {
 	if w := mediaRequest(r, "DELETE", "/media-note/attachments/"+id, "", owner...); w.Code != 423 {
 		t.Fatalf("locked: %d %s", w.Code, w.Body.String())
 	}
+	if w := mediaRequest(r, "POST", "/media-note/attachments/"+id+"/review", `{"action":"keep"}`, owner...); w.Code != 423 {
+		t.Fatalf("locked review: %d %s", w.Code, w.Body.String())
+	}
 	if f.uploaded+f.completed+f.removed+f.aborted != 0 {
 		t.Fatal("unauthorized storage operation")
 	}
@@ -141,6 +145,7 @@ func TestAttachmentsRejectForeignIDsAndInvalidMetadata(t *testing.T) {
 		{"PUT", "/other-note/attachments/" + id + "/parts/1", "12345678"},
 		{"POST", "/other-note/attachments/" + id + "/complete", `{"parts":[]}`},
 		{"DELETE", "/other-note/attachments/" + id, ""},
+		{"POST", "/other-note/attachments/" + id + "/review", `{"action":"keep"}`},
 	} {
 		if w := mediaRequest(r, route.method, route.path, route.body, other...); w.Code != 404 {
 			t.Fatalf("foreign attachment: %d", w.Code)
@@ -159,6 +164,158 @@ func TestAttachmentsRejectForeignIDsAndInvalidMetadata(t *testing.T) {
 	}
 	if f.started != 1 || f.uploaded+f.completed+f.removed != 0 {
 		t.Fatal("invalid request accessed storage")
+	}
+}
+
+func seedReviewAttachment(t *testing.T, s *Server, id string, complete bool) model.Attachment {
+	t.Helper()
+	var n model.NotepadModel
+	if err := s.DB.Where("slug = ?", "media-note").First(&n).Error; err != nil {
+		t.Fatal(err)
+	}
+	a := model.Attachment{ID: id, NoteID: n.Id, Name: "photo.png", Type: "image/png", Size: 8,
+		ObjectKey: "notes/2026-11/" + id + ".png", UploadID: "upload", Parts: "[]", Complete: complete}
+	if err := s.DB.Create(&a).Error; err != nil {
+		t.Fatal(err)
+	}
+	return a
+}
+
+func TestAttachmentReviewKeepPersistsAcrossListings(t *testing.T) {
+	s, r, f, owner := mediaServer(t)
+	a := seedReviewAttachment(t, s, "review-keep", true)
+	for i := 0; i < 2; i++ {
+		w := mediaRequest(r, "POST", "/media-note/attachments/"+a.ID+"/review", `{"action":"keep"}`, owner...)
+		if w.Code != 200 {
+			t.Fatalf("keep: %d %s", w.Code, w.Body.String())
+		}
+	}
+	var response struct {
+		Attachments []struct {
+			ID       string `json:"id"`
+			Retained bool   `json:"retained"`
+		} `json:"attachments"`
+		Source string `json:"source"`
+	}
+	w := mediaRequest(r, "GET", "/media-note/attachments", "", owner...)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if w.Code != 200 || response.Source != "# Hello" || len(response.Attachments) != 1 || !response.Attachments[0].Retained {
+		t.Fatalf("retention or source missing: %d %s", w.Code, w.Body.String())
+	}
+	if f.removed+f.aborted != 0 {
+		t.Fatal("keep touched object storage")
+	}
+	seedReviewAttachment(t, s, "new-unused", true)
+	w = mediaRequest(r, "GET", "/media-note/attachments", "", owner...)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range response.Attachments {
+		if item.ID == "new-unused" && item.Retained {
+			t.Fatal("retention incorrectly applied to a future attachment")
+		}
+	}
+}
+
+func TestAttachmentReviewDeleteRejectsStaleSourceAndRetainedFiles(t *testing.T) {
+	s, r, f, owner := mediaServer(t)
+	a := seedReviewAttachment(t, s, "review-delete", true)
+	endpoint := "/media-note/attachments/" + a.ID + "/review"
+	for _, body := range []string{`{"action":"delete"}`, `{"action":"delete","source":"old source"}`} {
+		if w := mediaRequest(r, "POST", endpoint, body, owner...); w.Code != 409 {
+			t.Fatalf("stale deletion: %d %s", w.Code, w.Body.String())
+		}
+	}
+	if f.removed != 0 {
+		t.Fatal("stale review deleted storage")
+	}
+	if w := mediaRequest(r, "POST", endpoint, `{"action":"delete","source":"# Hello"}`, owner...); w.Code != 200 {
+		t.Fatalf("explicit deletion: %d %s", w.Code, w.Body.String())
+	}
+	var count int64
+	s.DB.Model(&model.Attachment{}).Where("id = ?", a.ID).Count(&count)
+	if f.removed != 1 || count != 0 {
+		t.Fatal("explicit deletion did not remove the object and row")
+	}
+	a = seedReviewAttachment(t, s, "retained-elsewhere", true)
+	endpoint = "/media-note/attachments/" + a.ID + "/review"
+	if w := mediaRequest(r, "POST", endpoint, `{"action":"keep"}`, owner...); w.Code != 200 {
+		t.Fatalf("keep: %d %s", w.Code, w.Body.String())
+	}
+	if w := mediaRequest(r, "POST", endpoint, `{"action":"delete","source":"# Hello"}`, owner...); w.Code != 409 {
+		t.Fatalf("retained file deleted by stale prompt: %d %s", w.Code, w.Body.String())
+	}
+	if f.removed != 1 {
+		t.Fatal("retained object removed")
+	}
+}
+
+func TestAttachmentReviewCannotDeleteReferencedFile(t *testing.T) {
+	s, r, f, owner := mediaServer(t)
+	a := seedReviewAttachment(t, s, "still-referenced", true)
+	source := "![photo](" + s.Media.URL(a.ObjectKey) + ")"
+	if err := s.DB.Model(&model.NotepadModel{}).Where("slug = ?", "media-note").Update("text", source).Error; err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(map[string]string{"action": "delete", "source": source})
+	w := mediaRequest(r, "POST", "/media-note/attachments/"+a.ID+"/review", string(body), owner...)
+	if w.Code != 409 || f.removed != 0 {
+		t.Fatalf("referenced file deletion: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAttachmentReviewRecognizesEncodedAndLiteralReferences(t *testing.T) {
+	for _, source := range []string{
+		"50% done\n\n![photo](https://cdn.example/a%28b%29.jpg)",
+		"`https://cdn.example/a(b).jpg`",
+	} {
+		if !attachmentMentioned(source, "https://cdn.example/a(b).jpg") {
+			t.Fatalf("missed reference: %q", source)
+		}
+	}
+}
+
+func TestAttachmentReviewRecognizesURLAliases(t *testing.T) {
+	assetURL := "https://cdn.example/media/notes/random-file.png"
+	for _, href := range []string{
+		"//cdn.example/media/notes/random-file.png",
+		"https://CDN.EXAMPLE/media/notes/random-file.png",
+		"https://cdn.example:443/media/notes/random-file.png",
+		"/media/notes/random-file.png",
+		"../media/notes/random-file.png",
+		`https://CDN.EXAMPLE/media/notes/random-file\.png`,
+		`//cdn.example/media/notes/random\-file.png`,
+	} {
+		if !attachmentMentioned("![image]("+href+")", assetURL) {
+			t.Fatalf("missed alias: %q", href)
+		}
+	}
+}
+
+func TestAttachmentReviewRejectsInvalidActionsIncompleteUploadsAndStorageFailure(t *testing.T) {
+	s, r, f, owner := mediaServer(t)
+	a := seedReviewAttachment(t, s, "incomplete-review", false)
+	endpoint := "/media-note/attachments/" + a.ID + "/review"
+	if w := mediaRequest(r, "POST", endpoint, `{"action":"keep"}`, owner...); w.Code != 400 {
+		t.Fatalf("incomplete review: %d %s", w.Code, w.Body.String())
+	}
+	a = seedReviewAttachment(t, s, "complete-review", true)
+	endpoint = "/media-note/attachments/" + a.ID + "/review"
+	for _, body := range []string{`{`, `{"action":"unknown"}`, `{"action":"keep"} {}`} {
+		if w := mediaRequest(r, "POST", endpoint, body, owner...); w.Code != 400 {
+			t.Fatalf("invalid review: %d %s", w.Code, w.Body.String())
+		}
+	}
+	f.err = fmt.Errorf("storage offline")
+	if w := mediaRequest(r, "POST", endpoint, `{"action":"delete","source":"# Hello"}`, owner...); w.Code != 502 {
+		t.Fatalf("storage failure: %d %s", w.Code, w.Body.String())
+	}
+	var count int64
+	s.DB.Model(&model.Attachment{}).Where("id = ?", a.ID).Count(&count)
+	if count != 1 {
+		t.Fatal("failed deletion lost retry metadata")
 	}
 }
 

@@ -9,13 +9,15 @@
   <link rel="icon" href="/static/favicon.ico">
   <link rel="stylesheet" href="/static/markdown.css?v=20261017d">
   {{if .editable}}<link rel="stylesheet" href="/static/vendor/codemirror/lib/codemirror.css?v=5.65.20">{{end}}
-  <link rel="stylesheet" href="/static/media.css?v=20261030a">
-  <link rel="stylesheet" href="/static/style.css?v=20261030a">
+  <link rel="stylesheet" href="/static/media.css?v=20261101b">
+  <link rel="stylesheet" href="/static/style.css?v=20261031a">
+  <link rel="stylesheet" href="/static/image-viewer.css?v=20261031a">
   <link rel="stylesheet" href="/static/highlight.css?v=20261018a">
   <script defer src="/static/marked.min.js?v=20261015q"></script>
   <script defer src="/static/js-yaml.min.js?v=4.1.1"></script>
   <script defer src="/static/markdown-tools.js?v=20261017c"></script>
-  <script defer src="/static/render.js?v=20261017c"></script>
+  <script defer src="/static/image-viewer.js?v=20261031a"></script>
+  <script defer src="/static/render.js?v=20261031a"></script>
   {{if .editable}}
   <script defer src="/static/vendor/codemirror/lib/codemirror.js?v=5.65.20"></script>
   <script defer src="/static/vendor/codemirror/mode/xml/xml.js?v=5.65.20"></script>
@@ -26,7 +28,7 @@
   <script defer src="/static/vendor/codemirror/mode/gfm/gfm.js?v=5.65.20"></script>
   <script defer src="/static/vendor/codemirror/addon/edit/continuelist.js?v=5.65.20"></script>
   <script defer src="/static/markdown-editor.js?v=20261030a"></script>
-  <script defer src="/static/media.js?v=20261030a"></script>
+  <script defer src="/static/media.js?v=20261101b"></script>
   {{end}}
   <script defer src="/static/outline.js?v=20261030a"></script>
   <script defer src="/static/highlight.min.js?v=20261018a"></script>
@@ -271,6 +273,39 @@
       <button class="button button-solid" id="unlock-submit" type="submit">{{if
         .isPrivateLocked}}进入查看{{else}}进入编辑{{end}}</button>
     </form>
+  </dialog>
+  {{if .editable}}
+  <dialog id="unused-attachments-dialog" class="unlock-dialog unused-attachments-dialog" aria-labelledby="unused-attachments-title" aria-describedby="unused-attachments-summary unused-attachments-description">
+    <button id="unused-attachments-close" class="dialog-close" type="button" aria-label="稍后处理" title="稍后处理，下次进入编辑页时再次提醒">×</button>
+    <p class="dialog-eyebrow">附件整理</p>
+    <h2 id="unused-attachments-title">有附件未引用</h2>
+    <p id="unused-attachments-summary" class="dialog-description"></p>
+    <ul id="unused-attachments-list" class="unused-attachments-list" tabindex="0" aria-label="未引用附件列表"></ul>
+    <p id="unused-attachments-description" class="dialog-description">选择保留后，这些附件不再提醒。删除将永久移除原文件，无法撤销。</p>
+    <p id="unused-attachments-error" class="unlock-error" role="alert"></p>
+    <div class="unused-attachments-actions">
+      <button id="unused-attachments-keep" class="button button-outline" type="button">保留</button>
+      <button id="unused-attachments-delete" class="button button-outline" type="button">删除</button>
+    </div>
+  </dialog>
+  {{end}}
+  <dialog id="image-viewer" class="image-viewer" aria-label="图片预览">
+    <header class="image-viewer-header">
+      <p id="image-viewer-caption" class="image-viewer-caption"></p>
+      <div class="image-viewer-controls" role="group" aria-label="图片操作">
+        <button id="image-viewer-out" type="button" aria-label="缩小" title="缩小" disabled><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+        <output id="image-viewer-zoom" class="image-viewer-zoom" aria-label="缩放比例" aria-live="polite"></output>
+        <button id="image-viewer-in" type="button" aria-label="放大" title="放大" disabled><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12M10 4v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+        <button id="image-viewer-fit" type="button" disabled>适应屏幕</button>
+        <button id="image-viewer-close" type="button" aria-label="关闭图片预览" title="关闭 (Esc)"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+      </div>
+    </header>
+    <div id="image-viewer-stage" class="image-viewer-stage" tabindex="0" role="region" aria-label="图片滚动区域">
+      <p id="image-viewer-status" class="image-viewer-status" role="status"></p>
+      <div id="image-viewer-canvas" class="image-viewer-canvas" hidden>
+        <img id="image-viewer-image" class="image-viewer-image" referrerpolicy="no-referrer" alt="" title="点击切换原始尺寸 / 适应屏幕">
+      </div>
+    </div>
   </dialog>
   <dialog id="share-dialog" class="unlock-dialog">
     <button class="dialog-close" type="button" id="close-share-x" aria-label="关闭">×</button>

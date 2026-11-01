@@ -6,7 +6,7 @@ Keep Markdown markers visible and render heading sizes/syntax styles inside the 
 
 Upload images up to 20 MiB and videos up to 5 GiB to configured MinIO bucket/prefix using `prefix/YYYY-MM/random.ext` (Asia/Shanghai). Attachments have public permanent URLs, including on private notes. Do not change bucket policies automatically.
 
-Removing an uploaded attachment reference during editing immediately deletes its MinIO object. Do not wait for a note save, add a retention window, recycle bin, or cross-note reference counting. External links are never deleted. Deletion requires edit access to the owning note. Undo does not restore deleted objects.
+Updated 2026-11-01: editing never deletes completed objects when their references disappear. On the next editor entry, review unreferenced attachments with Keep/Delete choices. Keep is persisted per attachment and suppresses future prompts for that attachment. Only explicit deletion removes files, with fresh reference and saved-source checks. Closing the prompt without a choice defers it to the next entry. No background cleanup or cross-note reference counting is added. See `../plans/2026-11-01-unused-attachments.md` for the replacement workflow.
 
 ## Implementation Boundaries
 
@@ -18,4 +18,4 @@ Insert images as Markdown images and videos as links titled `video`; render vide
 
 ## Verification
 
-Add tests for editor rules, media rendering and URL safety, multipart ordering/retry/cancel, immediate reference removal, upload size validation, object paths, authorization, bounded streams and deletion. Run existing Go and Node suites, Go vet/build, and desktop/mobile browser smoke tests. Real MinIO writes/deletes are not needed for tests.
+Add tests for editor rules, media rendering and URL safety, multipart ordering/retry/cancel, safe cut/paste/undo, persistent retention and explicit review, upload size validation, object paths, authorization, bounded streams and deletion. Run existing Go and Node suites, Go vet/build, and desktop/mobile browser smoke tests. Real MinIO writes/deletes are not needed for tests.

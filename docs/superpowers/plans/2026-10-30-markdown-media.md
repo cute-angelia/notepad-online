@@ -1,5 +1,7 @@
 # Markdown Editor and Media Implementation Plan
 
+> Historical plan: the immediate reference-removal deletion behavior below was superseded on 2026-11-01 by `2026-11-01-unused-attachments.md`. Completed files now require explicit review; cutting and moving links never delete objects.
+
 > **For agentic workers:** Use subagent-driven development with independent backend/editor ownership and root integration.
 
 **Goal:** Deliver the approved Markdown editing, toolbar and direct-delete MinIO media workflow.

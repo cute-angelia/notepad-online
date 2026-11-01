@@ -1011,7 +1011,9 @@ input,textarea {
     color:#85847e;
 }
 .markdown-body img {
-    max-width:100%;
+    max-width:min(100%, 640px);
+    max-height:min(420px, 60vh);
+    width:auto;
     height:auto;
 }
 .markdown-body table {

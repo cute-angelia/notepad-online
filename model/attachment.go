@@ -12,5 +12,6 @@ type Attachment struct {
 	UploadID  string `gorm:"size:2048;not null"`
 	Parts     string `gorm:"type:longtext"`
 	Complete  bool   `gorm:"not null;default:false"`
+	Retained  bool   `gorm:"not null;default:false"`
 	CreatedAt int64  `gorm:"autoCreateTime"`
 }

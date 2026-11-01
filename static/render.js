@@ -54,5 +54,6 @@
         }
         sanitize(fragment.content);
         target.replaceChildren(fragment.content);
+        if (window.NotepadImages) window.NotepadImages.enhance(target);
     };
 })();

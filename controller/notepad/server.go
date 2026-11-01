@@ -35,6 +35,7 @@ func (s *Server) RegisterRoutes(r gin.IRouter) {
 	r.POST("/:id/attachments", writeGuard, s.BeginAttachment)
 	r.PUT("/:id/attachments/:attachment/parts/:part", writeGuard, s.UploadAttachmentPart)
 	r.POST("/:id/attachments/:attachment/complete", writeGuard, s.CompleteAttachment)
+	r.POST("/:id/attachments/:attachment/review", writeGuard, s.ReviewAttachment)
 	r.DELETE("/:id/attachments/:attachment", writeGuard, s.DeleteAttachment)
 }
 func writeGuard(c *gin.Context) {

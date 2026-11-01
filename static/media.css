@@ -7,6 +7,11 @@
 .media-transfer button { flex-shrink: 0; }
 .media-transfer[data-state="error"] .media-state { color: #b54736; }
 .markdown-body video { display: block; width: 100%; max-height: 70vh; margin: 1em 0; border-radius: 6px; background: #151515; }
+.unused-attachments-dialog { max-height:calc(100vh - 40px); max-height:calc(100dvh - 40px); overflow:auto; }
+.unused-attachments-list { max-height:min(220px, 25vh); overflow:auto; margin:0 0 20px; padding:12px 12px 12px 30px; background:var(--soft); border:1px solid var(--line); border-radius:4px; font-size:13px; line-height:1.8; overflow-wrap:anywhere; }
+.unused-attachments-list:focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
+.unused-attachments-actions { display:flex; gap:10px; }
+.unused-attachments-actions .button { flex:1; }
 @media (max-width: 760px) {
   .media-transfer { flex-wrap: wrap; gap: 6px 10px; }
   .media-name { flex-basis: 100%; }

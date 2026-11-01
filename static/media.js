@@ -16,8 +16,25 @@
     });
     return urls;
   }
-  function removedAssets(assets, before, after) {
-    return assets.filter(function (asset) { return before.has(asset.url) && !after.has(asset.url); });
+  function unreferencedAssets(assets, source, parser) {
+    source = source || '';
+    var urls = extractURLs(source, parser);
+    function decoded(value) {
+      return value.replace(/&(?:amp|#0*38|#x0*26);/gi, '&').replace(/(?:%[0-9a-f]{2})+/gi, function (encoded) {
+        try { return decodeURIComponent(encoded); } catch (_) { return encoded; }
+      });
+    }
+    var plainSource = decoded(source + '\n' + Array.from(urls).join('\n'));
+    // A literal URL also protects a file while its Markdown syntax is incomplete.
+    return assets.filter(function (asset) {
+      if (asset.retained || urls.has(asset.url) || source.indexOf(asset.url) !== -1 || plainSource.indexOf(decoded(asset.url)) !== -1) return false;
+      // Server-generated filenames are unique; protect aliases without relying on host spelling.
+      try {
+        var filename = decoded(new URL(asset.url).pathname.split('/').pop());
+        if (filename && plainSource.indexOf(filename) !== -1) return false;
+      } catch (_) { return false; }
+      return true;
+    });
   }
   function validateFile(file, limits) {
     limits = limits || {};
@@ -92,9 +109,10 @@
 
   function mount(options) {
     var textarea = options.textarea, host = options.editorHost || textarea.parentNode;
-    var notify = options.notify || function () {}, assets = [], previous = extractURLs(textarea.value, window.marked);
+    var notify = options.notify || function () {}, assets = [];
     var disabled = false, limits, deleting = new Set(), mountSource = textarea.value;
     var loaded = false, loading = null;
+    var entryReviewed = !!(options.isNew && options.isNew()), reviewBusy = false, pendingReview = [], reviewSource = '';
     var panel = document.createElement('section');
     panel.className = 'media-transfers'; panel.setAttribute('aria-label', '附件上传与删除'); panel.hidden = true;
     var workspace = document.querySelector('.editor-workspace');
@@ -137,23 +155,83 @@
         notify('附件删除失败，请在附件栏重试');
       } finally { deleting.delete(asset.id); }
     }
-    function scan() {
-      var current = extractURLs(textarea.value, window.marked);
-      removedAssets(assets, previous, current).forEach(function (asset) { deleteAsset(asset); });
-      previous = current;
+    function reviewOnEntry(result) {
+      if (entryReviewed) return;
+      entryReviewed = true;
+      if (!options.isEnabled() || typeof result.source !== 'string') return;
+      var dialog = document.getElementById('unused-attachments-dialog');
+      if (!dialog || typeof dialog.showModal !== 'function') return;
+      reviewSource = result.source;
+      pendingReview = unreferencedAssets(assets, mountSource, window.marked);
+      pendingReview = unreferencedAssets(pendingReview, reviewSource, window.marked);
+      pendingReview = unreferencedAssets(pendingReview, textarea.value, window.marked);
+      if (!pendingReview.length) return;
+      var summary = document.getElementById('unused-attachments-summary');
+      var list = document.getElementById('unused-attachments-list');
+      var errorView = document.getElementById('unused-attachments-error');
+      var keep = document.getElementById('unused-attachments-keep');
+      var remove = document.getElementById('unused-attachments-delete');
+      var close = document.getElementById('unused-attachments-close');
+      function renderReview() {
+        summary.textContent = '有 ' + pendingReview.length + ' 个附件未引用，是否保留？';
+        list.replaceChildren();
+        pendingReview.forEach(function (asset) {
+          var item = document.createElement('li'); item.textContent = asset.name || '附件'; list.appendChild(item);
+        });
+      }
+      async function decide(action) {
+        if (reviewBusy) return;
+        if (!options.isEnabled()) { errorView.textContent = '当前无法编辑，请重新进入编辑页后处理附件'; return; }
+        reviewBusy = true;
+        keep.disabled = remove.disabled = close.disabled = true;
+        dialog.setAttribute('aria-busy', 'true');
+        errorView.textContent = '';
+        var targets = pendingReview.slice();
+        try {
+          for (var i = 0; i < targets.length; i++) {
+            var asset = targets[i];
+            // Recheck after each asynchronous request, not just when the dialog opened.
+            if (!unreferencedAssets([asset], textarea.value, window.marked).length) {
+              pendingReview = pendingReview.filter(function (a) { return a.id !== asset.id; });
+              continue;
+            }
+            try {
+              await request('/' + asset.id + '/review', {method:'POST',
+                body:JSON.stringify({action:action,source:reviewSource}), headers:{'Content-Type':'application/json'}});
+              if (action === 'keep') asset.retained = true;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            if (action === 'delete' || !asset.retained) assets = assets.filter(function (a) { return a.id !== asset.id; });
+            pendingReview = pendingReview.filter(function (a) { return a.id !== asset.id; });
+          }
+          dialog.close();
+        } catch (error) {
+          renderReview();
+          errorView.textContent = '处理失败：' + error.message;
+        } finally {
+          reviewBusy = false;
+          keep.disabled = remove.disabled = close.disabled = false;
+          dialog.setAttribute('aria-busy', 'false');
+        }
+      }
+      keep.addEventListener('click', function () { return decide('keep'); });
+      remove.addEventListener('click', function () { return decide('delete'); });
+      close.addEventListener('click', function () { if (!reviewBusy) dialog.close(); });
+      dialog.addEventListener('cancel', function (event) { if (reviewBusy) event.preventDefault(); });
+      renderReview();
+      dialog.showModal();
+      keep.focus();
     }
-    textarea.addEventListener('input', scan);
     async function loadAssets(force) {
       if (loading) return loading;
       if ((loaded && !force) || (options.isNew && options.isNew())) return;
-      var sourceBeforeLoad = loaded ? textarea.value : mountSource;
       loading = (async function () {
         try {
           var result = await request('', {method:'GET'});
           assets = result.attachments || []; limits = result.limits;
           loaded = true; disabled = false;
-          // Edits may have happened while the list was being loaded.
-          previous = extractURLs(sourceBeforeLoad, window.marked); scan();
+          reviewOnEntry(result);
         } catch (error) {
           if (error.status === 503) { disabled = true; return; }
           throw error;
@@ -182,7 +260,6 @@
               onProgress:function (value) { view.progress.value = value; view.state.textContent = Math.floor(value * 100) + '%'; }});
             assets.push(result);
             insertAt(insertion(result));
-            previous = extractURLs(textarea.value, window.marked);
             view.progress.value = 1; view.state.textContent = '上传完成';
             view.action.textContent = '关闭'; view.action.onclick = function () { view.item.remove(); };
           } catch (error) {
@@ -220,7 +297,7 @@
       if (!options.isEnabled() || !event.dataTransfer || !event.dataTransfer.files.length) return;
       event.preventDefault(); event.stopPropagation(); enqueue(event.dataTransfer.files);
     }, true);
-    return {upload:enqueue, scan:scan, ready:initialization, reload:function () { return loadAssets(true); }};
+    return {upload:enqueue, ready:initialization, reload:function () { return loadAssets(true); }};
   }
-  return {extractURLs:extractURLs, removedAssets:removedAssets, validateFile:validateFile, insertion:insertion, videoHTML:videoHTML, uploadFile:uploadFile, mount:mount};
+  return {extractURLs:extractURLs, unreferencedAssets:unreferencedAssets, validateFile:validateFile, insertion:insertion, videoHTML:videoHTML, uploadFile:uploadFile, mount:mount};
 });

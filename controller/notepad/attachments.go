@@ -5,9 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"html"
 	"io"
 	"net/http"
+	"net/url"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,16 +28,19 @@ var mediaExtensions = map[string]string{
 	"video/mp4": ".mp4", "video/webm": ".webm", "video/ogg": ".ogv", "video/quicktime": ".mov",
 }
 
+var encodedURLBytes = regexp.MustCompile(`(%[0-9A-Fa-f]{2})+`)
+
 type attachmentResponse struct {
-	ID   string `json:"id"`
-	URL  string `json:"url"`
-	Name string `json:"name"`
-	Type string `json:"type"`
-	Size int64  `json:"size"`
+	ID       string `json:"id"`
+	URL      string `json:"url"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Size     int64  `json:"size"`
+	Retained bool   `json:"retained"`
 }
 
 func (s *Server) attachmentResponse(a model.Attachment) attachmentResponse {
-	return attachmentResponse{ID: a.ID, URL: s.Media.URL(a.ObjectKey), Name: a.Name, Type: a.Type, Size: a.Size}
+	return attachmentResponse{ID: a.ID, URL: s.Media.URL(a.ObjectKey), Name: a.Name, Type: a.Type, Size: a.Size, Retained: a.Retained}
 }
 
 type mediaFailure struct {
@@ -131,7 +137,7 @@ func (s *Server) ListAttachments(c *gin.Context) {
 		for _, a := range rows {
 			items = append(items, s.attachmentResponse(a))
 		}
-		return gin.H{"attachments": items, "limits": gin.H{"image": s.Media.Config.ImageMaxSize, "video": s.Media.Config.VideoMaxSize}}, nil
+		return gin.H{"attachments": items, "source": n.Text, "limits": gin.H{"image": s.Media.Config.ImageMaxSize, "video": s.Media.Config.VideoMaxSize}}, nil
 	})
 }
 
@@ -356,23 +362,89 @@ func (s *Server) DeleteAttachment(c *gin.Context) {
 		if err != nil {
 			return nil, err
 		}
-		ctx, cancel := context.WithTimeout(c.Request.Context(), s.Media.Config.Timeout)
-		defer cancel()
-		if a.Complete {
-			err = s.Media.Store.Remove(ctx, a.ObjectKey)
-		} else {
-			err = s.Media.Store.Abort(ctx, a.ObjectKey, a.UploadID)
-			if errors.Is(err, attachments.ErrUploadNotFound) {
-				// Completion may have reached storage just before a DB commit or
-				// response failed. The key is unique to this owned attachment.
-				err = s.Media.Store.Remove(ctx, a.ObjectKey)
-			}
-		}
-		if err != nil {
-			return nil, mediaStorageError()
-		}
-		if err = tx.Delete(&a).Error; err != nil {
+		if err = s.deleteAttachment(tx, c, a); err != nil {
 			return nil, err
+		}
+		return gin.H{"status": "ok"}, nil
+	})
+}
+
+func (s *Server) deleteAttachment(tx *gorm.DB, c *gin.Context, a model.Attachment) error {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), s.Media.Config.Timeout)
+	defer cancel()
+	var err error
+	if a.Complete {
+		err = s.Media.Store.Remove(ctx, a.ObjectKey)
+	} else {
+		err = s.Media.Store.Abort(ctx, a.ObjectKey, a.UploadID)
+		if errors.Is(err, attachments.ErrUploadNotFound) {
+			// Completion can reach storage before its database commit succeeds.
+			err = s.Media.Store.Remove(ctx, a.ObjectKey)
+		}
+	}
+	if err != nil {
+		return mediaStorageError()
+	}
+	return tx.Delete(&a).Error
+}
+
+// Err on the side of retention: even a literal URL in code protects the file.
+func attachmentMentioned(source, assetURL string) bool {
+	normalize := func(value string) string {
+		return encodedURLBytes.ReplaceAllStringFunc(html.UnescapeString(value), func(encoded string) string {
+			decoded, _ := url.PathUnescape(encoded)
+			return decoded
+		})
+	}
+	plainSource := strings.ReplaceAll(normalize(source), `\`, "")
+	if strings.Contains(source, assetURL) || strings.Contains(plainSource, normalize(assetURL)) {
+		return true
+	}
+	// The random object filename also protects protocol/host/relative URL aliases.
+	u, err := url.Parse(assetURL)
+	if err != nil {
+		return true
+	}
+	filename := path.Base(u.Path)
+	return filename == "." || filename == "/" || strings.Contains(plainSource, filename)
+}
+
+func (s *Server) ReviewAttachment(c *gin.Context) {
+	s.mediaOperation(c, 200, func(tx *gorm.DB, n model.NotepadModel) (any, error) {
+		a, err := findAttachment(tx, c, n)
+		if err != nil {
+			return nil, err
+		}
+		var input struct {
+			Action string  `json:"action"`
+			Source *string `json:"source"`
+		}
+		if err = mediaJSON(c, &input); err != nil {
+			return nil, err
+		}
+		if !a.Complete {
+			return nil, mediaBad("上传中的附件不能进行清理确认")
+		}
+		switch input.Action {
+		case "keep":
+			if err = tx.Model(&a).Update("retained", true).Error; err != nil {
+				return nil, err
+			}
+		case "delete":
+			if a.Retained {
+				return nil, &mediaFailure{status: 409, message: "此附件已选择保留，已取消删除"}
+			}
+			if input.Source == nil || *input.Source != n.Text {
+				return nil, &mediaFailure{status: 409, message: "正文已变化，请刷新后重新检查未引用附件"}
+			}
+			if attachmentMentioned(n.Text, s.Media.URL(a.ObjectKey)) {
+				return nil, &mediaFailure{status: 409, message: "正文中仍有此附件地址，已取消删除"}
+			}
+			if err = s.deleteAttachment(tx, c, a); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, mediaBad("请选择保留或删除附件")
 		}
 		return gin.H{"status": "ok"}, nil
 	})
