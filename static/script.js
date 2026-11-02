@@ -42,7 +42,9 @@
   var viewSecret = document.getElementById('note-view-secret');
   var viewSecretWrap = document.getElementById('view-secret-wrap');
   var randomViewSecretBtn = document.getElementById('random-view-secret');
-  var lastSaved, savedSecret = secret ? secret.value : '', savedViewSecret = viewSecret ? viewSecret.value : '';
+  var lastSaved, savedSecret = secret ? secret.value : '';
+  var committedSecret = savedSecret, committedViewSecret = viewSecret ? viewSecret.value : '';
+  var dirtySince = null, lastEditAt = 0, lastSaveAt = -Infinity;
   var inFlight = null, timer, previewOpen = false, noteEditor = null;
   var mobile = window.matchMedia('(max-width: 760px)');
   var isPrivate = body.dataset.isPrivate === 'true';
@@ -150,7 +152,7 @@
         textarea.readOnly = false; title.disabled = false; secret.disabled = false; if (viewSecret) viewSecret.disabled = false;
         if (noteEditor) noteEditor.readOnly(false);
         document.querySelectorAll('.type-switch button, .markdown-toolbar button, #random-secret, #random-view-secret').forEach(function (button) { button.disabled = false; });
-        setStatus(changed() ? '保存中' : '已保存');
+        schedule(false);
       }
       showNotice('锁定时间已结束，可以继续编辑。', 'info');
     }, remaining + 100);
@@ -207,33 +209,53 @@
     document.getElementById('word-count').textContent = Array.from(textarea.value).length.toLocaleString() + ' 字';
     document.title = (title.value.trim() || '未命名文档') + ' · 记事本';
   }
-  function snapshot() { return { title: title.value, text: textarea.value, document_type: kind, is_private: isPrivate ? 1 : 0, view_secret: viewSecret ? viewSecret.value : '' }; }
-  function changed() { return isNew || (secret && secret.value !== savedSecret) || (viewSecret && viewSecret.value !== savedViewSecret) || JSON.stringify(snapshot()) !== lastSaved; }
-  function schedule() {
-    if (blocked) return;
-    setStatus('保存中'); clearTimeout(timer);
-    timer = setTimeout(function () { save().catch(function () { }); }, 800);
+  function snapshot() { return { title: title.value, text: textarea.value, document_type: kind, is_private: isPrivate ? 1 : 0, view_secret: committedViewSecret }; }
+  function changed() { return isNew || committedSecret !== savedSecret || JSON.stringify(snapshot()) !== lastSaved; }
+  function secretInputChanged() { return (secret && secret.value !== committedSecret) || (viewSecret && viewSecret.value !== committedViewSecret); }
+  function unsaved() { return changed() || secretInputChanged(); }
+  function updateSaveStatus() {
+    var state = inFlight ? 'saving' : unsaved() ? 'pending' : 'saved';
+    setStatus(state === 'saving' ? '保存中' : state === 'pending' ? '待保存' : '已保存', state);
   }
-  async function save() {
+  function schedule(recordEdit) {
+    if (blocked) return;
     clearTimeout(timer);
-    if (inFlight) { await inFlight; if (changed()) return save(); return; }
+    updateSaveStatus();
+    if (!changed()) { dirtySince = null; return; }
+    var now = Date.now();
+    if (dirtySince === null) dirtySince = now;
+    if (recordEdit !== false) lastEditAt = now;
+    if (inFlight) return;
+    // Debounce edits, cap continuous typing at 30s, and respect the 10s cooldown.
+    var due = Math.max(lastSaveAt + 10000, Math.min(lastEditAt + 3000, dirtySince + 30000));
+    timer = setTimeout(function () { save(true).catch(function () { }); }, Math.max(0, due - now));
+  }
+  function flush() {
+    if (secret) committedSecret = secret.value;
+    if (viewSecret) committedViewSecret = viewSecret.value;
+    return save();
+  }
+  async function save(automatic) {
+    clearTimeout(timer);
+    if (inFlight) { if (automatic) return; await inFlight; if (changed()) return save(); return; }
     if (blocked) throw new Error('本文档今天已锁定，无法保存');
     if (!changed()) return;
-    var data = snapshot(), capturedKey = secret.value, keyChanged = isNew || capturedKey !== savedSecret;
+    var data = snapshot(), capturedSnapshot = JSON.stringify(data), capturedKey = committedSecret, keyChanged = isNew || capturedKey !== savedSecret;
     if (Array.from(data.text).length > 100000) { setStatus('正文超出长度限制', 'error'); throw new Error('正文不能超过 100,000 个字符'); }
     if (keyChanged && (Array.from(capturedKey.trim()).length < 4 || new TextEncoder().encode(capturedKey).length > 72)) {
       setStatus('秘钥格式有误', 'error'); throw new Error('秘钥至少 4 个字符，最多 72 字节');
     }
     var creating = isNew;
     data.is_private = isPrivate ? '1' : '0';
-    if (viewSecret) data.view_secret = viewSecret.value;
     if (keyChanged) data.secret = capturedKey;
     if (creating) { data.slug = slug; data.tag = slug; }
+    lastSaveAt = Date.now();
+    dirtySince = null;
     setStatus('保存中', 'saving');
     inFlight = (async function () {
       try {
         var result = await api(creating ? '/api/notes' : '/' + encodeURIComponent(tag), data);
-        lastSaved = JSON.stringify(snapshot());
+        lastSaved = capturedSnapshot;
         if (creating) {
           isNew = false;
           body.dataset.new = 'false';
@@ -242,9 +264,7 @@
           if (viewLink) viewLink.href = result.view_url || ('/' + encodeURIComponent(slug));
         }
         savedSecret = capturedKey;
-        if (viewSecret) savedViewSecret = viewSecret.value;
         if (capturedKey) rememberSecret(capturedKey);
-        setStatus('已保存');
         if (!blocked) notice.hidden = true;
       } catch (error) {
         setStatus('保存失败', 'error'); showNotice(error.message + '。正文仍保留在当前页面。');
@@ -254,14 +274,17 @@
       }
     })();
     try { await inFlight; } finally { inFlight = null; }
-    if (changed() && !blocked) schedule();
+    if (!blocked) {
+      updateSaveStatus();
+      if (changed()) schedule(false);
+    }
   }
 
   async function share() {
     shareButton.disabled = true;
     try {
-      if (editable && !blocked) { await save(); while (changed()) await save(); }
-      else if (editable && changed()) throw new Error('当前有未保存的修改，分享前请先保存');
+      if (editable && !blocked) { await flush(); while (changed()) await save(); }
+      else if (editable && unsaved()) throw new Error('当前有未保存的修改，分享前请先保存');
       var shareUrl = new URL('/' + encodeURIComponent(tag), window.location.origin);
       if (isPrivate && viewSecret && viewSecret.value) {
         shareUrl.searchParams.set('view_pwd', viewSecret.value);
@@ -436,8 +459,11 @@
           } catch (_) { }
         }
         updateLockToggleUI();
-        showToast(isPrivate ? '已设为非公开文档' : '已设为公开文档');
-        schedule();
+        if (viewSecret) committedViewSecret = viewSecret.value;
+        try {
+          await save();
+          showToast(isPrivate ? '已设为非公开文档' : '已设为公开文档');
+        } catch (_) { }
       });
     }
     if (viewSecret) {
@@ -446,9 +472,7 @@
         await copyText(viewSecret.value, viewSecret);
         showToast('查看码已复制');
       });
-      viewSecret.addEventListener('input', function () {
-        schedule();
-      });
+      viewSecret.addEventListener('input', updateSaveStatus);
     }
     if (randomViewSecretBtn) {
       randomViewSecretBtn.addEventListener('click', async function () {
@@ -459,13 +483,32 @@
           var response = await fetch('/api/secret', { credentials: 'same-origin', cache: 'no-store' });
           if (!response.ok) throw new Error('生成查看码失败');
           viewSecret.value = (await response.json()).secret;
-          schedule();
+          committedViewSecret = viewSecret.value;
+          await save();
         } catch (error) { showNotice(error.message); } finally { button.disabled = blocked; }
       });
     }
     textarea.addEventListener('input', function () { updateDocument(); schedule(); });
     title.addEventListener('input', function () { updateDocument(); schedule(); });
-    secret.addEventListener('input', function () { secret.title = '点击复制，直接输入可修改'; schedule(); });
+    secret.addEventListener('input', function () { secret.title = '点击复制，直接输入可修改'; updateSaveStatus(); });
+    [secret, viewSecret].forEach(function (field) {
+      if (!field) return;
+      function commit() {
+        if (blocked) return;
+        if (field === secret) {
+          if (field.value === committedSecret) return;
+          committedSecret = field.value;
+        } else {
+          if (field.value === committedViewSecret) return;
+          committedViewSecret = field.value;
+        }
+        save().catch(function () { });
+      }
+      field.addEventListener('blur', commit);
+      field.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); commit(); }
+      });
+    });
     document.querySelectorAll('.type-switch button').forEach(function (button) { button.addEventListener('click', function () { if (blocked) return; kind = button.dataset.kind; updateDocument(); schedule(); }); });
     previewButton.addEventListener('click', function () { previewOpen = !previewOpen; updateDocument(); });
     mobile.addEventListener('change', updateDocument);
@@ -509,7 +552,8 @@
           var response = await fetch('/api/secret', { credentials: 'same-origin', cache: 'no-store' });
           if (!response.ok) throw new Error('生成秘钥失败');
           secret.value = (await response.json()).secret;
-          schedule();
+          committedSecret = secret.value;
+          await save();
         } catch (error) { showNotice(error.message); } finally { button.disabled = blocked; }
       });
     }
@@ -576,8 +620,8 @@
         }
       }
     });
-    window.addEventListener('beforeunload', function (event) { if (changed() && (!isNew || title.value || textarea.value)) { event.preventDefault(); event.returnValue = ''; } });
-    document.addEventListener('keydown', function (event) { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save().catch(function () { }); } });
+    window.addEventListener('beforeunload', function (event) { if (unsaved() && (!isNew || title.value || textarea.value)) { event.preventDefault(); event.returnValue = ''; } });
+    document.addEventListener('keydown', function (event) { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); flush().catch(function () { }); } });
     updateDocument();
   } else if (body.dataset.privateLocked !== 'true') {
     doc.dataset.kind = kind;
