@@ -49,6 +49,10 @@
     };
     if (inline[command]) {
       prefix = inline[command][0]; suffix = inline[command][1]; sample = selected || inline[command][2];
+      if (command === 'link' || command === 'video') {
+        var urlStart = start + prefix.length + sample.length + 2;
+        return edit(start, end, prefix + sample + suffix, urlStart, urlStart + 'https://'.length);
+      }
       return edit(start, end, prefix + sample + suffix, start + prefix.length, start + prefix.length + sample.length);
     }
     if (/^h[1-6]$/.test(command) || ['quote', 'list', 'ordered-list', 'task'].includes(command)) {

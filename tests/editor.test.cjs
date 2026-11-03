@@ -58,6 +58,19 @@ test('inline formats preserve visible Markdown and selected text', () => {
   }
 });
 
+test('link and video formats select the URL placeholder for replacement', () => {
+  for (const command of ['link', 'video']) {
+    for (const [source, start, end] of [['prefix ', 7, 7], ['prefix word', 7, 11]]) {
+      const change = editor.format(source, start, end, command);
+      const result = apply(source, change);
+      assert.equal(result.slice(change.start, change.end), 'https://');
+      assert.match(result, /\[(?:word|链接文字|视频名称)\]\(https:\/\//);
+    }
+  }
+  const image = editor.format('', 0, 0, 'image');
+  assert.equal(image.text.slice(image.start, image.end), '图片描述');
+});
+
 test('block toolbar supports quote, bullets, ordered tasks, fenced code, table and divider', () => {
   for (const [command, expected] of [['quote', '> one\n> two'], ['list', '- one\n- two'], ['ordered-list', '1. one\n2. two'], ['task', '- [ ] one\n- [ ] two']]) {
     assert.equal(apply('one\ntwo', editor.format('one\ntwo', 0, 7, command)), expected);
