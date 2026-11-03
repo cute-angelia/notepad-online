@@ -44,11 +44,8 @@
 .page-backlinks a:hover { text-decoration:underline; }
 .page-reference-dialog label { display:block; margin:18px 0 8px; font-size:13px; }
 .page-reference-dialog select { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:5px; color:var(--ink); background:var(--paper); font:inherit; }
-.slash-hint { font-size:12px; color:var(--muted); }
-.document:not([data-kind="markdown"]) .page-reference-button,
-.document:not([data-kind="markdown"]) .slash-hint { display:none; }
+.document:not([data-kind="markdown"]) .page-reference-button { display:none; }
 @media(max-width:760px) {
-    .slash-hint { display:none; }
     .markdown-body .page-embed { padding:14px; }
     .page-reference-dialog input, .page-reference-dialog select { font-size:16px; }
 }

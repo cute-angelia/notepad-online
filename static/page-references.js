@@ -179,7 +179,11 @@
       document.getElementById('close-page-reference').addEventListener('click', function () { dialog.close(); });
       dialog.addEventListener('close', cancel);
       dialog.addEventListener('cancel', cancel);
-      document.getElementById('page-reference-button').addEventListener('click', function () { open('link'); });
+      var refBtn = document.getElementById('page-reference-button');
+      if (refBtn) {
+        refBtn.addEventListener('mousedown', function (event) { event.preventDefault(); });
+        refBtn.addEventListener('click', function () { open('link'); });
+      }
       form.addEventListener('submit', async function (event) {
         event.preventDefault();
         if (submit.disabled) return;
