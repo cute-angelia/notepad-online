@@ -8,6 +8,7 @@ require (
 	github.com/cute-angelia/go-xutils v1.8.91
 	github.com/minio/minio-go/v7 v7.0.99
 	github.com/spf13/viper v1.11.0
+	github.com/yuin/goldmark v1.7.8
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
 )

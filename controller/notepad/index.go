@@ -92,6 +92,9 @@ func (s *Server) Create(c *gin.Context) {
 		if e := tx.Create(&n).Error; e != nil {
 			return e
 		}
+		if e := model.SyncNoteLinks(tx, n); e != nil {
+			return e
+		}
 		return s.grant(tx, n, token, n.Secret)
 	})
 	if err != nil {
@@ -103,5 +106,5 @@ func (s *Server) Create(c *gin.Context) {
 		serverError(c)
 		return
 	}
-	c.JSON(201, gin.H{"view_url": notePath(slug), "edit_url": notePath(slug) + "/edit"})
+	c.JSON(201, gin.H{"id": n.Id, "view_url": notePath(slug), "edit_url": notePath(slug) + "/edit"})
 }

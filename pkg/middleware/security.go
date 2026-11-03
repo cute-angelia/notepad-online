@@ -186,6 +186,13 @@ func NewIPScanBanLimiter(maxNotFound int, window, banDuration time.Duration) *IP
 	return limiter
 }
 
+// ExpectedResourceMiss distinguishes a handled missing resource from a scanned path.
+// Only server handlers can set it; request headers cannot bypass scan detection.
+func ExpectedResourceMiss(c *gin.Context) {
+	c.Set("notepad:expected-resource-miss", true)
+	c.Status(http.StatusNotFound)
+}
+
 // Middleware returns a Gin middleware for 404-scan detection and banning.
 func (b *IPScanBanLimiter) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -210,7 +217,7 @@ func (b *IPScanBanLimiter) Middleware() gin.HandlerFunc {
 
 		c.Next()
 
-		if c.Writer.Status() == http.StatusNotFound {
+		if c.Writer.Status() == http.StatusNotFound && !c.GetBool("notepad:expected-resource-miss") {
 			b.mu.Lock()
 			defer b.mu.Unlock()
 

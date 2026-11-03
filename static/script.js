@@ -45,7 +45,7 @@
   var lastSaved, savedSecret = secret ? secret.value : '';
   var committedSecret = savedSecret, committedViewSecret = viewSecret ? viewSecret.value : '';
   var dirtySince = null, lastEditAt = 0, lastSaveAt = -Infinity;
-  var inFlight = null, timer, previewOpen = false, noteEditor = null;
+  var inFlight = null, timer, previewOpen = false, noteEditor = null, pageReferences = null;
   var mobile = window.matchMedia('(max-width: 760px)');
   var isPrivate = body.dataset.isPrivate === 'true';
   var lockToggle = document.getElementById('lock-toggle');
@@ -195,6 +195,7 @@
     var show = previewOpen && kind === 'markdown' && !mobile.matches;
     var layoutChanged = doc.classList.contains('is-preview') !== show;
     doc.classList.toggle('is-preview', show); preview.hidden = !show;
+    if (show && layoutChanged && window.NotepadPages) window.NotepadPages.enhance(document.getElementById('preview-content'));
     if (layoutChanged && noteEditor) requestAnimationFrame(function () { noteEditor.refresh(); });
     previewButton.setAttribute('aria-pressed', String(show));
     previewButton.querySelector('span').textContent = show ? '收起预览' : '实时预览';
@@ -259,6 +260,8 @@
         if (creating) {
           isNew = false;
           body.dataset.new = 'false';
+          body.dataset.noteId = String(result.id);
+          if (pageReferences) pageReferences.refresh();
           history.replaceState(null, '', result.edit_url);
           var viewLink = document.getElementById('view-link');
           if (viewLink) viewLink.href = result.view_url || ('/' + encodeURIComponent(slug));
@@ -760,6 +763,46 @@
         }
       });
     }
+  }
+  if (window.NotepadPages && body.dataset.privateLocked !== 'true') {
+    pageReferences = window.NotepadPages.mount({
+      getID: function () { return Number(body.dataset.noteId) || 0; },
+      getTitle: function () {
+        var titleInput = document.getElementById('note-title');
+        if (titleInput && titleInput.value.trim()) return titleInput.value.trim();
+        var articleTitle = document.querySelector('.article-title');
+        if (articleTitle) {
+          var clone = articleTitle.cloneNode(true);
+          var editIcon = clone.querySelector('.edit-icon');
+          if (editIcon) editIcon.remove();
+          if (clone.textContent.trim()) return clone.textContent.trim();
+        }
+        if (body.dataset.title && body.dataset.title.trim()) return body.dataset.title.trim();
+        if (document.title) {
+          var clean = document.title.replace(/\s*·\s*记事本\s*$/, '').trim();
+          if (clean && clean !== '记事本') return clean;
+        }
+        return '';
+      },
+      ready: flush,
+      copy: copyText,
+      notify: showToast,
+      isEnabled: function () { return editable && kind === 'markdown' && !blocked && !!noteEditor; },
+      captureInsertion: function () { return noteEditor.captureInsertionPoint(); }
+    });
+  }
+  if (editable && noteEditor && window.NotepadSlashCommands) {
+    window.NotepadSlashCommands.mount({
+      textarea: textarea,
+      host: document.getElementById('code-editor-wrap'),
+      editor: noteEditor,
+      isEnabled: function () { return kind === 'markdown' && !blocked; },
+      openPage: function (mode) { if (pageReferences) pageReferences.open(mode); },
+      upload: function (kind) {
+        var button = document.querySelector('[data-upload="' + kind + '"]');
+        if (button) button.click();
+      }
+    });
   }
   if (triggerUnlockBtn) {
     triggerUnlockBtn.addEventListener('click', function () {

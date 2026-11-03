@@ -13,11 +13,14 @@
   <link rel="stylesheet" href="/static/style.css?v=20261031a">
   <link rel="stylesheet" href="/static/image-viewer.css?v=20261031a">
   <link rel="stylesheet" href="/static/highlight.css?v=20261018a">
+  <link rel="stylesheet" href="/static/page-references.css?v=20261103d">
+  {{if .editable}}<link rel="stylesheet" href="/static/slash-commands.css?v=20261103d">{{end}}
   <script defer src="/static/marked.min.js?v=20261015q"></script>
   <script defer src="/static/js-yaml.min.js?v=4.1.1"></script>
   <script defer src="/static/markdown-tools.js?v=20261017c"></script>
+  <script defer src="/static/page-references.js?v=20261103d"></script>
   <script defer src="/static/image-viewer.js?v=20261031a"></script>
-  <script defer src="/static/render.js?v=20261031a"></script>
+  <script defer src="/static/render.js?v=20261103d"></script>
   {{if .editable}}
   <script defer src="/static/vendor/codemirror/lib/codemirror.js?v=5.65.20"></script>
   <script defer src="/static/vendor/codemirror/mode/xml/xml.js?v=5.65.20"></script>
@@ -27,15 +30,16 @@
   <script defer src="/static/vendor/codemirror/addon/mode/overlay.js?v=5.65.20"></script>
   <script defer src="/static/vendor/codemirror/mode/gfm/gfm.js?v=5.65.20"></script>
   <script defer src="/static/vendor/codemirror/addon/edit/continuelist.js?v=5.65.20"></script>
-  <script defer src="/static/markdown-editor.js?v=20261103a"></script>
+  <script defer src="/static/markdown-editor.js?v=20261103d"></script>
+  <script defer src="/static/slash-commands.js?v=20261103d"></script>
   <script defer src="/static/media.js?v=20261101b"></script>
   {{end}}
   <script defer src="/static/outline.js?v=20261103a"></script>
   <script defer src="/static/highlight.min.js?v=20261018a"></script>
-  <script defer src="/static/script.js?v=20261102a"></script>
+  <script defer src="/static/script.js?v=20261103d"></script>
 </head>
 
-<body data-slug="{{.note.Slug}}" data-tag="{{.note.Slug}}" data-editable="{{.editable}}" data-new="{{.newNote}}"
+<body data-note-id="{{.note.Id}}" data-title="{{.title}}" data-slug="{{.note.Slug}}" data-tag="{{.note.Slug}}" data-editable="{{.editable}}" data-new="{{.newNote}}"
   data-kind="{{.kind}}" data-locked-until="{{.lockedUntil}}" data-request-edit="{{.requestEdit}}"
   data-is-private="{{if .isPrivate}}true{{else}}false{{end}}"
   data-private-locked="{{if .isPrivateLocked}}true{{else}}false{{end}}">
@@ -165,6 +169,8 @@
         <button type="button" data-kind="code" aria-pressed="{{eq .kind " code"}}" {{if
           .locked}}disabled{{end}}>代码</button>
       </div>
+      <button id="page-reference-button" class="text-button page-reference-button" type="button" {{if .locked}}disabled{{end}}>引用页面</button>
+      <span class="slash-hint">输入 / 插入内容</span>
       <button id="preview-button" class="text-button preview-toggle" type="button" aria-pressed="false">◧
         <span>实时预览</span></button>
     </div>
@@ -257,7 +263,30 @@
     <footer class="document-footer"><span>记下，分享。</span><a href="/" target="_blank" rel="noopener">写一篇自己的</a></footer>
     {{end}}
     {{end}}
+    {{if not .isPrivateLocked}}
+    <section id="page-backlinks" class="page-backlinks" aria-label="页面引用关系">
+      <div class="page-backlinks-heading"><h2>反向链接</h2><button id="copy-page-reference" class="text-button" type="button">复制此页引用</button></div>
+      <p id="page-backlinks-status">{{if .newNote}}保存后可引用此页{{else}}加载引用关系…{{end}}</p>
+      <ul id="page-backlinks-list"></ul>
+    </section>
+    {{end}}
   </main>
+  {{if .editable}}
+  <dialog id="page-reference-dialog" class="unlock-dialog page-reference-dialog" aria-labelledby="page-reference-title">
+    <button id="close-page-reference" class="dialog-close" type="button" aria-label="关闭页面引用">×</button>
+    <form id="page-reference-form">
+      <p class="dialog-eyebrow">连接你的想法</p>
+      <h2 id="page-reference-title">引用页面</h2>
+      <p class="dialog-description">粘贴本站文档地址、地址标识或页面 ID。引用绑定 ID，改标题也不会断开。</p>
+      <label for="page-reference-target">目标页面</label>
+      <input id="page-reference-target" type="text" required autocomplete="off" placeholder="文档地址 / ID / [[page:123:title]]">
+      <label for="page-reference-mode">引用方式</label>
+      <select id="page-reference-mode"><option value="link">页面链接</option><option value="embed">嵌入正文</option></select>
+      <p id="page-reference-error" class="unlock-error" role="alert"></p>
+      <button id="page-reference-submit" class="button button-solid" type="submit">插入引用</button>
+    </form>
+  </dialog>
+  {{end}}
   <dialog id="unlock-dialog" class="unlock-dialog" {{if or .requestEdit .isPrivateLocked}}open{{end}}>
     <form id="unlock-form">
       {{if not .isPrivateLocked}}

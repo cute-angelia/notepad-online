@@ -150,6 +150,7 @@
     var adapter = {
       getValue: function () { return textarea.value; },
       getSelection: selection,
+      getCursorRect: function () { return active ? cm.cursorCoords(null, 'window') : textarea.getBoundingClientRect(); },
       setSelection: setSelection,
       focus: function () { if (active) cm.focus(); else textarea.focus(); },
       replaceSelection: function (text) { var selected = selection(); apply(edit(selected.start, selected.end, text)); },

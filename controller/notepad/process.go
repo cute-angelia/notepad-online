@@ -108,6 +108,9 @@ func (s *Server) Save(c *gin.Context) {
 		if e = tx.Model(&n).Updates(updates).Error; e != nil {
 			return e
 		}
+		if e = model.SyncNoteLinks(tx, n); e != nil {
+			return e
+		}
 		if secretChanged {
 			token, e := s.browser(c, true)
 			if e != nil {

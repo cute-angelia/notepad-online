@@ -52,13 +52,16 @@ func Migrate(db *gorm.DB) error {
 			return fmt.Errorf("notepad migration: %d duplicate slugs; resolve duplicates before adding unique index", duplicates)
 		}
 	}
-	if err := db.AutoMigrate(&NotepadModel{}, &BrowserGrant{}, &Attachment{}); err != nil {
+	if err := db.AutoMigrate(&NotepadModel{}, &BrowserGrant{}, &Attachment{}, &NoteLink{}, &DataMigration{}); err != nil {
 		return err
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&NotepadModel{}).Where("secret = ? OR secret IS NULL", "").Update("secret", "twins").Error; err != nil {
 			return err
 		}
-		return tx.Model(&NotepadModel{}).Where("document_type = ? OR document_type IS NULL", "").Update("document_type", "text").Error
+		if err := tx.Model(&NotepadModel{}).Where("document_type = ? OR document_type IS NULL", "").Update("document_type", "text").Error; err != nil {
+			return err
+		}
+		return migrateNoteLinks(tx)
 	})
 }

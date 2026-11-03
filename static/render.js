@@ -1,7 +1,7 @@
 /* Render Markdown through an allowlist before attaching it to the document. */
 (function () {
     'use strict';
-    var allowed = new Set('P BR HR H1 H2 H3 H4 H5 H6 STRONG EM DEL BLOCKQUOTE UL OL LI PRE CODE A IMG VIDEO TABLE THEAD TBODY TR TH TD INPUT'.split(' '));
+    var allowed = new Set('P BR HR H1 H2 H3 H4 H5 H6 STRONG EM DEL BLOCKQUOTE UL OL LI PRE CODE A IMG VIDEO TABLE THEAD TBODY TR TH TD INPUT SPAN'.split(' '));
     function safeURL(value, image) {
         var clean = value.replace(/[\u0000-\u0020\u007f]/g, '');
         if (!clean) return false;
@@ -10,7 +10,7 @@
             return protocol === 'https:' || protocol === 'http:' || (!image && protocol === 'mailto:');
         } catch (_) { return false; }
     }
-    window.renderMarkdown = function (target, source) {
+    window.renderMarkdown = function (target, source, pageContext) {
         var fragment = document.createElement('template');
         // Strip raw HTML as well as sanitizing generated nodes below.
         var renderer = new marked.Renderer();
@@ -26,7 +26,9 @@
                 if (!allowed.has(element.tagName)) { element.replaceWith(document.createTextNode(element.textContent)); return; }
                 Array.from(element.attributes).forEach(function (attribute) {
                     var name = attribute.name, tag = element.tagName;
-                    var keep = (tag === 'A' && (name === 'href' || name === 'title')) ||
+                    var pageNode = (tag === 'A' && element.className === 'page-reference') || (tag === 'SPAN' && element.className === 'page-embed');
+                    var keep = (pageNode && ((name === 'class') || (name === 'data-page-id' && /^[1-9][0-9]{0,9}$/.test(attribute.value)) || (tag === 'A' && name === 'data-page-label' && attribute.value === 'true'))) ||
+                        (tag === 'A' && (name === 'href' || name === 'title')) ||
                         (tag === 'IMG' && (name === 'src' || name === 'alt' || name === 'title')) ||
                         (tag === 'VIDEO' && (name === 'src' || name === 'controls' || name === 'aria-label' || (name === 'preload' && attribute.value === 'metadata'))) ||
                         (tag === 'OL' && name === 'start' && /^\d+$/.test(attribute.value)) ||
@@ -38,7 +40,8 @@
                 });
                 if (element.tagName === 'A') {
                     if (!safeURL(element.getAttribute('href') || '', false)) element.removeAttribute('href');
-                    element.setAttribute('target', '_blank'); element.setAttribute('rel', 'noopener noreferrer');
+                    if (element.className !== 'page-reference') element.setAttribute('target', '_blank');
+                    element.setAttribute('rel', 'noopener noreferrer');
                 }
                 if (element.tagName === 'IMG') {
                     if (!safeURL(element.getAttribute('src') || '', true)) element.removeAttribute('src');
@@ -55,5 +58,6 @@
         sanitize(fragment.content);
         target.replaceChildren(fragment.content);
         if (window.NotepadImages) window.NotepadImages.enhance(target);
+        if (window.NotepadPages) window.NotepadPages.enhance(target, pageContext);
     };
 })();
