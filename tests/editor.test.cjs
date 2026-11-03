@@ -144,6 +144,30 @@ test('CodeMirror changes synchronously mirror source and emit exactly one native
   assert.equal(inputs(), 2);
 });
 
+test('Markdown typing and cursor movement never select the hidden native textarea', () => {
+  const { textarea, cm, adapter, inputs } = mountFakeCodeMirror('hello');
+  adapter.setMode('markdown');
+  let nativeSelections = 0, selections = 0;
+  const setSelectionRange = textarea.setSelectionRange;
+  textarea.setSelectionRange = function (start, end) {
+    nativeSelections++;
+    setSelectionRange.call(this, start, end);
+  };
+  textarea.addEventListener('select', () => selections++);
+  adapter.setSelection(5, 5);
+  cm.replaceRange('a', { index: 5 }, { index: 5 });
+  adapter.setSelection(2, 4);
+  assert.equal(nativeSelections, 0);
+  assert.equal(textarea.value, 'helloa');
+  assert.equal(inputs(), 1);
+  assert.ok(selections > 0);
+  assert.deepEqual(adapter.getSelection(), { start: 2, end: 4 });
+  adapter.setMode('text');
+  assert.equal(nativeSelections, 1);
+  assert.equal(textarea.selectionStart, 2);
+  assert.equal(textarea.selectionEnd, 4);
+});
+
 test('mode switching retains content and selection without synthetic input or autosave', () => {
   const { textarea, cm, adapter, inputs } = mountFakeCodeMirror('# Heading');
   adapter.setMode('markdown');

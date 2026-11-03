@@ -14,8 +14,9 @@
     }
     function followSelection() {
         if (!textarea || !entries.length) return;
+        var offset = window.noteEditor ? window.noteEditor.getSelection().start : textarea.selectionStart;
         var current = 0;
-        entries.forEach(function (entry, index) {if (entry.offset <= textarea.selectionStart) current = index;});
+        entries.forEach(function (entry, index) {if (entry.offset <= offset) current = index;});
         activate(current);
     }
     function scrollToSource(entry) {

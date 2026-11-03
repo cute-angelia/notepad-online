@@ -138,14 +138,11 @@
       cm.on('change', function () {
         if (muted) return;
         textarea.value = cm.getValue();
-        var selected = selection();
-        textarea.setSelectionRange(selected.start, selected.end);
         input();
       });
       cm.on('cursorActivity', function () {
         if (!active) return;
-        var selected = selection();
-        textarea.setSelectionRange(selected.start, selected.end);
+        // Leave the hidden textarea selection alone while the mobile IME is active.
         textarea.dispatchEvent(new Event('select'));
       });
       cm.on('scroll', function () { scrollListeners.forEach(function (listener) { listener(cm.getScrollerElement()); }); });
