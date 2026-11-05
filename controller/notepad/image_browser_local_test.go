@@ -19,7 +19,8 @@ func TestImageBrowserLocal(t *testing.T) {
 	owner := createNote(t, r, "image-preview")
 	text := "## 横图\n\n![横向图片](/__images/wide)\n\n## 长图\n\n![长截图](/__images/tall)\n\n## 小图\n\n![小图](/__images/small)\n\n## 图片链接\n\n[![链接图片](/__images/small)](/image-preview)\n\n## 加载失败\n\n![失效图片](/__images/missing)"
 	w := request(r, http.MethodPost, "/image-preview", url.Values{
-		"text": {text}, "title": {"图片阅读预览"}, "document_type": {"markdown"},
+		"version": {"1"},
+		"text":    {text}, "title": {"图片阅读预览"}, "document_type": {"markdown"},
 	}, owner...)
 	if w.Code != http.StatusOK {
 		t.Fatalf("seed images: %d %s", w.Code, w.Body.String())

@@ -20,6 +20,7 @@ type NotepadModel struct {
 	FailureDay     string `json:"-" gorm:"size:10;not null;default:''"`
 	CreateTime     string `json:"create_time" gorm:"column:create_time"`
 	UpdateTime     string `json:"update_time" gorm:"column:update_time"`
+	Version        int64  `json:"version" gorm:"not null;default:1"`
 }
 
 func (NotepadModel) TableName() string { return "notepad" }

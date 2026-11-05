@@ -106,5 +106,5 @@ func (s *Server) Create(c *gin.Context) {
 		serverError(c)
 		return
 	}
-	c.JSON(201, gin.H{"id": n.Id, "view_url": notePath(slug), "edit_url": notePath(slug) + "/edit"})
+	c.JSON(201, gin.H{"id": n.Id, "version": n.Version, "view_url": notePath(slug), "edit_url": notePath(slug) + "/edit"})
 }

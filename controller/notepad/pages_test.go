@@ -40,7 +40,7 @@ func TestPageReferencesFollowCreateSaveAndModes(t *testing.T) {
 		}
 	}
 	count(2)
-	w := request(r, "POST", "/source", url.Values{"text": {fmt.Sprintf("[[page:%d]] [[page:%d]] [[page:2147483647]]", target.Id, target.Id)}}, owner...)
+	w := request(r, "POST", "/source", url.Values{"version": {"1"}, "text": {fmt.Sprintf("[[page:%d]] [[page:%d]] [[page:2147483647]]", target.Id, target.Id)}}, owner...)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -50,17 +50,17 @@ func TestPageReferencesFollowCreateSaveAndModes(t *testing.T) {
 		t.Fatal(w.Code)
 	}
 	count(1)
-	w = request(r, "POST", "/source", url.Values{"document_type": {"code"}}, owner...)
+	w = request(r, "POST", "/source", url.Values{"version": {"2"}, "document_type": {"code"}}, owner...)
 	if w.Code != 200 {
 		t.Fatal(w.Code)
 	}
 	count(0)
-	w = request(r, "POST", "/source", url.Values{"document_type": {"markdown"}}, owner...)
+	w = request(r, "POST", "/source", url.Values{"version": {"3"}, "document_type": {"markdown"}}, owner...)
 	if w.Code != 200 {
 		t.Fatal(w.Code)
 	}
 	count(1)
-	w = request(r, "POST", "/source", url.Values{"text": {""}}, owner...)
+	w = request(r, "POST", "/source", url.Values{"version": {"4"}, "text": {""}}, owner...)
 	if w.Code != 200 {
 		t.Fatal(w.Code)
 	}
@@ -150,13 +150,13 @@ func TestPageReferenceIndexRollsBackWithSave(t *testing.T) {
 	if err := s.DB.Exec("CREATE TRIGGER reject_link_delete BEFORE DELETE ON note_links BEGIN SELECT RAISE(ABORT, 'test failure'); END").Error; err != nil {
 		t.Fatal(err)
 	}
-	w := request(r, "POST", "/source", url.Values{"text": {"must rollback"}}, owner...)
+	w := request(r, "POST", "/source", url.Values{"version": {"1"}, "text": {"must rollback"}}, owner...)
 	if w.Code != 500 {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	var got model.NotepadModel
 	s.DB.First(&got, source.Id)
-	if got.Text != source.Text {
+	if got.Text != source.Text || got.Version != source.Version {
 		t.Fatal("source text committed without reference index")
 	}
 }

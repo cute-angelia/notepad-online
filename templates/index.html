@@ -36,10 +36,10 @@
   {{end}}
   <script defer src="/static/outline.js?v=20261103a"></script>
   <script defer src="/static/highlight.min.js?v=20261018a"></script>
-  <script defer src="/static/script.js?v=20261103d"></script>
+  <script defer src="/static/script.js?v=20261105a"></script>
 </head>
 
-<body data-note-id="{{.note.Id}}" data-title="{{.title}}" data-slug="{{.note.Slug}}" data-tag="{{.note.Slug}}" data-editable="{{.editable}}" data-new="{{.newNote}}"
+<body data-note-id="{{.note.Id}}" data-version="{{.note.Version}}" data-title="{{.title}}" data-slug="{{.note.Slug}}" data-tag="{{.note.Slug}}" data-editable="{{.editable}}" data-new="{{.newNote}}"
   data-kind="{{.kind}}" data-locked-until="{{.lockedUntil}}" data-request-edit="{{.requestEdit}}"
   data-is-private="{{if .isPrivate}}true{{else}}false{{end}}"
   data-private-locked="{{if .isPrivateLocked}}true{{else}}false{{end}}">

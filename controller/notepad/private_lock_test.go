@@ -130,6 +130,7 @@ func TestPrivateLock_Lifecycle(t *testing.T) {
 
 	// 8. Toggle lock off: Save with is_private = 0 using author cookie
 	wSaveToggle := request(r, "POST", "/private-note", url.Values{
+		"version":       {"1"},
 		"title":         {"机密标题"},
 		"text":          {"公开正文内容"},
 		"document_type": {"markdown"},

@@ -77,7 +77,7 @@ func TestPublicLinkCannotWriteAndDoesNotExposeSecret(t *testing.T) {
 	if w.Code != 403 {
 		t.Fatalf("unauthorized save = %d", w.Code)
 	}
-	w = request(r, "POST", "/public-note", url.Values{"title": {"Changed"}, "text": {"saved"}, "document_type": {"text"}}, owner...)
+	w = request(r, "POST", "/public-note", url.Values{"version": {"1"}, "title": {"Changed"}, "text": {"saved"}, "document_type": {"text"}}, owner...)
 	if w.Code != 200 {
 		t.Fatalf("owner save: %d %s", w.Code, w.Body.String())
 	}
@@ -99,7 +99,7 @@ func TestBrowserGrantAndSecretRotation(t *testing.T) {
 	if !strings.Contains(w.Body.String(), `data-editable="true"`) {
 		t.Fatal("browser not remembered")
 	}
-	w = request(r, "POST", "/rotate-note", url.Values{"text": {"rotated"}, "document_type": {"markdown"}, "secret": {"orange"}}, owner...)
+	w = request(r, "POST", "/rotate-note", url.Values{"version": {"1"}, "text": {"rotated"}, "document_type": {"markdown"}, "secret": {"orange"}}, owner...)
 	if w.Code != 200 {
 		t.Fatalf("rotate = %d %s", w.Code, w.Body.String())
 	}
@@ -107,7 +107,7 @@ func TestBrowserGrantAndSecretRotation(t *testing.T) {
 	if w.Code != 403 {
 		t.Fatalf("old browser still authorized: %d", w.Code)
 	}
-	w = request(r, "POST", "/rotate-note", url.Values{"text": {"good"}}, owner...)
+	w = request(r, "POST", "/rotate-note", url.Values{"version": {"2"}, "text": {"good"}}, owner...)
 	if w.Code != 200 {
 		t.Fatalf("current browser lost access: %d", w.Code)
 	}
@@ -171,7 +171,7 @@ func TestLockExpiresAtShanghaiMidnightAndCounterPersists(t *testing.T) {
 		t.Fatalf("restart bypassed lock: %d", w.Code)
 	}
 	now = now.Add(time.Second)
-	w = request(r, "POST", "/expiry-note", url.Values{"text": {"after midnight"}}, owner...)
+	w = request(r, "POST", "/expiry-note", url.Values{"version": {"1"}, "text": {"after midnight"}}, owner...)
 	if w.Code != 200 {
 		t.Fatalf("midnight did not unlock: %d %s", w.Code, w.Body.String())
 	}
@@ -193,7 +193,7 @@ func TestMigrationKeepsLegacyTextAndSetsTwinsOnlyOnce(t *testing.T) {
 		t.Fatalf("legacy secret: %d", w.Code)
 	}
 	c := w.Result().Cookies()
-	w = request(r, "POST", "/legacy", url.Values{"secret": {"custom"}, "text": {"old body"}}, c...)
+	w = request(r, "POST", "/legacy", url.Values{"version": {"1"}, "secret": {"custom"}, "text": {"old body"}}, c...)
 	if w.Code != 200 {
 		t.Fatal(w.Body.String())
 	}
@@ -273,7 +273,7 @@ func TestMigrationFromOriginalSchema(t *testing.T) {
 	}
 	var n model.NotepadModel
 	db.First(&n)
-	if n.DocumentType != "text" || n.Secret == "" || n.Text != "legacy content" || n.Locked != 0 {
+	if n.DocumentType != "text" || n.Secret == "" || n.Text != "legacy content" || n.Locked != 0 || n.Version != 1 {
 		t.Fatalf("legacy migration lost data: %+v", n)
 	}
 	s := NewServer(db)
@@ -330,7 +330,7 @@ func TestGrantExpiryAndPlainTextSwitchPreserveContent(t *testing.T) {
 	s, r := testServer(t)
 	owner := createNote(t, r, "type-switch")
 	text := "# Heading\n\n**keep** <script>hello</script>"
-	w := request(r, "POST", "/type-switch", url.Values{"text": {text}, "document_type": {"text"}}, owner...)
+	w := request(r, "POST", "/type-switch", url.Values{"version": {"1"}, "text": {text}, "document_type": {"text"}}, owner...)
 	if w.Code != 200 {
 		t.Fatal(w.Body.String())
 	}
@@ -419,7 +419,7 @@ func TestSecretRotationRefreshesBrowserCookie(t *testing.T) {
 	s.Now = func() time.Time { return now }
 	owner := createNote(t, r, "cookie-rotation")
 	now = now.Add(grantAge - time.Hour)
-	w := request(r, "POST", "/cookie-rotation", url.Values{"secret": {"orange"}}, owner...)
+	w := request(r, "POST", "/cookie-rotation", url.Values{"version": {"1"}, "secret": {"orange"}}, owner...)
 	if w.Code != 200 {
 		t.Fatal(w.Body.String())
 	}
@@ -436,7 +436,7 @@ func TestSavingUnchangedSecretKeepsOtherBrowserAuthorized(t *testing.T) {
 	other := w.Result().Cookies()
 	var before model.NotepadModel
 	s.DB.Where("slug = ?", "same-secret").First(&before)
-	w = request(r, "POST", "/same-secret", url.Values{"secret": {"apple"}, "text": {"updated"}}, owner...)
+	w = request(r, "POST", "/same-secret", url.Values{"version": {"1"}, "secret": {"apple"}, "text": {"updated"}}, owner...)
 	if w.Code != 200 {
 		t.Fatal(w.Body.String())
 	}
@@ -445,7 +445,7 @@ func TestSavingUnchangedSecretKeepsOtherBrowserAuthorized(t *testing.T) {
 	if before.Secret != after.Secret {
 		t.Fatal("unchanged secret was replaced")
 	}
-	w = request(r, "POST", "/same-secret", url.Values{"text": {"other browser"}}, other...)
+	w = request(r, "POST", "/same-secret", url.Values{"version": {"2"}, "text": {"other browser"}}, other...)
 	if w.Code != 200 {
 		t.Fatalf("unchanged secret revoked another browser: %d", w.Code)
 	}
@@ -505,6 +505,7 @@ func TestCodeDocumentType(t *testing.T) {
 
 	// Update to another code text
 	w = request(r, "POST", "/code-test", url.Values{
+		"version":       {"1"},
 		"title":         {"Updated Code"},
 		"text":          {"function add(a, b) { return a + b; }"},
 		"document_type": {"code"},
@@ -519,4 +520,3 @@ func TestCodeDocumentType(t *testing.T) {
 		t.Fatalf("raw code content mismatch: %q", w.Body.String())
 	}
 }
-

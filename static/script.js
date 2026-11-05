@@ -2,6 +2,8 @@
   'use strict';
   var body = document.body, slug = body.dataset.slug || body.dataset.tag, tag = slug, editable = body.dataset.editable === 'true';
   var isNew = body.dataset.new === 'true', kind = body.dataset.kind;
+  var savedVersion = body.dataset.version, saveConflict = false;
+  var conflictMessage = '文档已在其他页面或设备更新，本次修改未保存。自动保存已暂停，请先复制本页修改备份，再刷新页面查看最新内容。';
   var doc = document.getElementById('document'), status = document.getElementById('save-status');
   var textarea = document.getElementById('content'), title = document.getElementById('note-title');
   var secret = document.getElementById('note-secret'), preview = document.getElementById('preview-pane');
@@ -215,6 +217,7 @@
   function secretInputChanged() { return (secret && secret.value !== committedSecret) || (viewSecret && viewSecret.value !== committedViewSecret); }
   function unsaved() { return changed() || secretInputChanged(); }
   function updateSaveStatus() {
+    if (saveConflict) { setStatus('版本冲突，未保存', 'error'); return; }
     var state = inFlight ? 'saving' : unsaved() ? 'pending' : 'saved';
     setStatus(state === 'saving' ? '保存中' : state === 'pending' ? '待保存' : '已保存', state);
   }
@@ -222,6 +225,7 @@
     if (blocked) return;
     clearTimeout(timer);
     updateSaveStatus();
+    if (saveConflict) return;
     if (!changed()) { dirtySince = null; return; }
     var now = Date.now();
     if (dirtySince === null) dirtySince = now;
@@ -240,6 +244,7 @@
     clearTimeout(timer);
     if (inFlight) { if (automatic) return; await inFlight; if (changed()) return save(); return; }
     if (blocked) throw new Error('本文档今天已锁定，无法保存');
+    if (saveConflict) { showNotice(conflictMessage); throw new Error(conflictMessage); }
     if (!changed()) return;
     var data = snapshot(), capturedSnapshot = JSON.stringify(data), capturedKey = committedSecret, keyChanged = isNew || capturedKey !== savedSecret;
     if (Array.from(data.text).length > 100000) { setStatus('正文超出长度限制', 'error'); throw new Error('正文不能超过 100,000 个字符'); }
@@ -250,12 +255,15 @@
     data.is_private = isPrivate ? '1' : '0';
     if (keyChanged) data.secret = capturedKey;
     if (creating) { data.slug = slug; data.tag = slug; }
+    else data.version = savedVersion;
     lastSaveAt = Date.now();
     dirtySince = null;
     setStatus('保存中', 'saving');
     inFlight = (async function () {
       try {
         var result = await api(creating ? '/api/notes' : '/' + encodeURIComponent(tag), data);
+        savedVersion = String(result.version);
+        body.dataset.version = savedVersion;
         lastSaved = capturedSnapshot;
         if (creating) {
           isNew = false;
@@ -270,6 +278,13 @@
         if (capturedKey) rememberSecret(capturedKey);
         if (!blocked) notice.hidden = true;
       } catch (error) {
+        if (error.status === 409 && error.details.code === 'version_conflict') {
+          saveConflict = true;
+          clearTimeout(timer);
+          updateSaveStatus();
+          showNotice(conflictMessage);
+          throw error;
+        }
         setStatus('保存失败', 'error'); showNotice(error.message + '。正文仍保留在当前页面。');
         if (error.status === 423) lock(error.details.locked_until);
         if (error.status === 403) { showNotice('浏览器授权已失效。请保留当前正文，在新窗口用秘钥重新授权后重试。'); }

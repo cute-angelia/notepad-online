@@ -2,6 +2,7 @@ package notepad
 
 import (
 	"errors"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -45,6 +46,7 @@ func (s *Server) Save(c *gin.Context) {
 	}
 	status := 200
 	var until int64
+	var savedVersion int64
 	message := ""
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		var n model.NotepadModel
@@ -68,6 +70,20 @@ func (s *Server) Save(c *gin.Context) {
 		}
 		if !allowed {
 			status = 403
+			return nil
+		}
+		if c.PostForm("version") == "" {
+			status = 428
+			return nil
+		}
+		version, err := strconv.ParseInt(c.PostForm("version"), 10, 64)
+		if err != nil || version < 1 {
+			status = 400
+			message = "文档版本无效，请保留当前修改后刷新页面"
+			return nil
+		}
+		if version != n.Version {
+			status = 409
 			return nil
 		}
 		if _, ok := c.Request.PostForm["text"]; ok {
@@ -105,9 +121,17 @@ func (s *Server) Save(c *gin.Context) {
 		updates["view_secret"] = n.ViewSecret
 		updates["secret"] = n.Secret
 		updates["update_time"] = s.Now().Format("2006-01-02 15:04:05")
-		if e = tx.Model(&n).Updates(updates).Error; e != nil {
-			return e
+		updates["version"] = gorm.Expr("version + 1")
+		// Compare and increment in the same write, even on databases without row locks.
+		result := tx.Model(&n).Where("version = ?", version).Updates(updates)
+		if result.Error != nil {
+			return result.Error
 		}
+		if result.RowsAffected != 1 {
+			status = 409
+			return nil
+		}
+		savedVersion = version + 1
 		if e = model.SyncNoteLinks(tx, n); e != nil {
 			return e
 		}
@@ -128,6 +152,10 @@ func (s *Server) Save(c *gin.Context) {
 		return
 	}
 	switch status {
+	case 409:
+		c.JSON(409, gin.H{"error": "文档已在其他页面或设备更新，本次修改未保存", "code": "version_conflict"})
+	case 428:
+		c.JSON(428, gin.H{"error": "缺少文档版本，请保留当前修改后刷新页面", "code": "version_required"})
 	case 423:
 		lockedReply(c, until)
 	case 403:
@@ -137,6 +165,6 @@ func (s *Server) Save(c *gin.Context) {
 	case 400:
 		c.JSON(400, gin.H{"error": message})
 	default:
-		c.JSON(200, gin.H{"status": "ok"})
+		c.JSON(200, gin.H{"status": "ok", "version": savedVersion})
 	}
 }
