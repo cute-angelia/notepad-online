@@ -165,6 +165,27 @@ test('hidden preview hydration does not issue requests or consume rate limits', 
   assert.equal(h.requests.length, 0);
 });
 
+test('page template omits the backlinks footer but keeps the reference editor', () => {
+  const template = fs.readFileSync(require.resolve('../templates/index.html'), 'utf8');
+  assert.doesNotMatch(template, /id="(?:page-backlinks(?:-list|-status)?|copy-page-reference)"/);
+  assert.match(template, /id="page-reference-button"/);
+  assert.match(template, /id="page-reference-dialog"/);
+});
+
+test('mount without the backlinks footer does not fetch reference lists', async () => {
+  const requests = [];
+  const window = {
+    marked: { use() {} },
+    document: { getElementById() { return null; } },
+    fetch: async url => { requests.push(url); return response({ backlinks: [] }); }
+  };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../static/page-references.js'), 'utf8'), { window });
+  const mounted = window.NotepadPages.mount({ getID: () => 138, isEnabled: () => true });
+  mounted.open('link');
+  await mounted.refresh();
+  assert.deepEqual(requests, []);
+});
+
 test('mount copy-page-reference copies reference with title', async () => {
   let copiedText = '';
   const listeners = {};

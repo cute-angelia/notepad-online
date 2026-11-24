@@ -36,12 +36,6 @@
     text-decoration-color:var(--muted);
     cursor:pointer;
 }
-.page-backlinks { margin-top:36px; padding:22px 0; border-top:1px solid var(--line); font-family:var(--sans); }
-.page-backlinks-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
-.page-backlinks h2 { margin:0; font-size:13px; font-weight:600; }
-.page-backlinks p { color:var(--muted); font-size:12px; }
-.page-backlinks ul { margin:14px 0 0; padding-left:20px; font-size:14px; line-height:1.9; }
-.page-backlinks a:hover { text-decoration:underline; }
 .page-reference-dialog label { display:block; margin:18px 0 8px; font-size:13px; }
 .page-reference-dialog select { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:5px; color:var(--ink); background:var(--paper); font:inherit; }
 .document:not([data-kind="markdown"]) .page-reference-button { display:none; }

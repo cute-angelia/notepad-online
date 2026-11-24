@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/static/markdown.css?v=20261017d">
   {{if .editable}}<link rel="stylesheet" href="/static/vendor/codemirror/lib/codemirror.css?v=5.65.20">{{end}}
   <link rel="stylesheet" href="/static/media.css?v=20261101b">
-  <link rel="stylesheet" href="/static/style.css?v=20261031a">
+  <link rel="stylesheet" href="/static/style.css?v=20261108a">
   <link rel="stylesheet" href="/static/image-viewer.css?v=20261031a">
   <link rel="stylesheet" href="/static/highlight.css?v=20261018a">
   <link rel="stylesheet" href="/static/page-references.css?v=20261103d">
@@ -265,13 +265,6 @@
     {{end}}
     <footer class="document-footer"><span>记下，分享。</span><a href="/" target="_blank" rel="noopener">写一篇自己的</a></footer>
     {{end}}
-    {{end}}
-    {{if not .isPrivateLocked}}
-    <section id="page-backlinks" class="page-backlinks" aria-label="页面引用关系">
-      <div class="page-backlinks-heading"><h2>反向链接</h2><button id="copy-page-reference" class="text-button" type="button">复制此页引用</button></div>
-      <p id="page-backlinks-status">{{if .newNote}}保存后可引用此页{{else}}加载引用关系…{{end}}</p>
-      <ul id="page-backlinks-list"></ul>
-    </section>
     {{end}}
   </main>
   {{if .editable}}

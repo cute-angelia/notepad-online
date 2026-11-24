@@ -515,7 +515,9 @@ input,textarea {
     margin-bottom:26px;
     min-height:45px;
     flex-wrap:wrap;
-    position:relative;
+    position:sticky;
+    top:0;
+    background:var(--paper);
     z-index:3;
 }
 .markdown-toolbar button {
@@ -561,6 +563,7 @@ input,textarea {
     letter-spacing:.06em;
 }
 .toolbar-menu { position:relative; }
+.toolbar-more { margin-inline-start:auto; }
 .toolbar-menu summary {
     height:28px;
     min-width:32px;
